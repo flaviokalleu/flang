@@ -1,0 +1,9 @@
+dados
+
+  produto
+    nome: texto obrigatorio
+    descricao: texto
+    preco: dinheiro
+    estoque: numero
+    categoria: texto
+    status: status

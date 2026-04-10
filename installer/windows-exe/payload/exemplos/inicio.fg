@@ -1,0 +1,109 @@
+sistema loja
+
+tema moderno escuro
+
+autenticacao
+  modelo: usuario
+  campo_login: email
+  campo_senha: senha
+  roles: admin, vendedor
+
+dados
+
+  usuario
+    nome: texto obrigatorio
+    email: email obrigatorio unico
+    senha: senha obrigatorio
+    cargo: texto
+    status: status
+
+  produto
+    nome: texto obrigatorio
+    descricao: texto_longo
+    preco: dinheiro
+    estoque: numero
+    categoria: texto pertence_a categoria
+    status: status
+
+  categoria
+    nome: texto obrigatorio
+    descricao: texto
+
+  cliente
+    nome: texto obrigatorio
+    email: email unico
+    telefone: telefone
+    cidade: texto
+    status: status
+
+  venda
+    cliente: texto pertence_a cliente
+    produto: texto pertence_a produto
+    quantidade: numero
+    valor: dinheiro
+    data: data
+    status: enum(pendente, pago, enviado, entregue)
+
+telas
+
+  tela produtos
+    titulo "Produtos"
+    lista produto
+      mostrar nome
+      mostrar preco
+      mostrar estoque
+      mostrar status
+    botao azul
+      texto "Novo Produto"
+
+  tela clientes
+    titulo "Clientes"
+    lista cliente
+      mostrar nome
+      mostrar email
+      mostrar telefone
+      mostrar status
+    botao verde
+      texto "Novo Cliente"
+
+  tela vendas
+    titulo "Vendas"
+    lista venda
+      mostrar cliente
+      mostrar produto
+      mostrar valor
+      mostrar status
+    botao azul
+      texto "Nova Venda"
+
+  tela equipe
+    titulo "Equipe"
+    requer admin
+    lista usuario
+      mostrar nome
+      mostrar email
+      mostrar cargo
+      mostrar status
+    botao azul
+      texto "Novo Membro"
+
+eventos
+
+  quando clicar "Novo Produto"
+    criar produto
+
+  quando clicar "Novo Cliente"
+    criar cliente
+
+  quando clicar "Nova Venda"
+    criar venda
+
+  quando clicar "Novo Membro"
+    criar usuario
+
+logica
+
+  funcao calcular_total(preco, quantidade)
+    retornar preco * quantidade
+
+  mostrar "Loja rodando!"

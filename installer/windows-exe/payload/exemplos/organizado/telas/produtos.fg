@@ -1,0 +1,12 @@
+telas
+
+  tela produtos
+    titulo "Produtos"
+    lista produto
+      mostrar nome
+      mostrar preco
+      mostrar estoque
+      mostrar categoria
+      mostrar status
+    botao azul
+      texto "Novo Produto"

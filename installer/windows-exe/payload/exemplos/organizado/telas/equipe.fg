@@ -1,0 +1,11 @@
+telas
+
+  tela equipe
+    titulo "Equipe"
+    lista usuario
+      mostrar nome
+      mostrar email
+      mostrar cargo
+      mostrar status
+    botao azul
+      texto "Novo Membro"

@@ -1,0 +1,12 @@
+telas
+
+  tela clientes
+    titulo "Clientes"
+    lista cliente
+      mostrar nome
+      mostrar email
+      mostrar telefone
+      mostrar cidade
+      mostrar status
+    botao verde
+      texto "Novo Cliente"

@@ -1,0 +1,13 @@
+eventos
+
+  quando clicar "Novo Produto"
+    criar produto
+
+  quando clicar "Novo Cliente"
+    criar cliente
+
+  quando clicar "Nova Venda"
+    criar venda
+
+  quando clicar "Novo Membro"
+    criar usuario

@@ -1,0 +1,9 @@
+dados
+
+  venda
+    cliente: texto obrigatorio
+    produto: texto obrigatorio
+    quantidade: numero
+    valor: dinheiro
+    data: data
+    status: status

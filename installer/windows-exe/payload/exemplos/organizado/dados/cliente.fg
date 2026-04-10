@@ -1,0 +1,8 @@
+dados
+
+  cliente
+    nome: texto obrigatorio
+    email: email unico
+    telefone: telefone
+    cidade: texto
+    status: status

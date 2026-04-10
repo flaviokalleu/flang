@@ -1,0 +1,8 @@
+dados
+
+  usuario
+    nome: texto obrigatorio
+    email: email obrigatorio unico
+    senha: senha obrigatorio
+    cargo: texto
+    status: status

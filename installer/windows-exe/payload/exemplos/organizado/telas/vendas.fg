@@ -1,0 +1,13 @@
+telas
+
+  tela vendas
+    titulo "Vendas"
+    lista venda
+      mostrar cliente
+      mostrar produto
+      mostrar quantidade
+      mostrar valor
+      mostrar data
+      mostrar status
+    botao azul
+      texto "Nova Venda"
