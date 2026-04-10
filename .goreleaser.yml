@@ -1,0 +1,312 @@
+# =============================================================================
+# GoReleaser Configuration for Flang
+# Configuracao do GoReleaser para o Flang
+#
+# Documentacao / Documentation: https://goreleaser.com
+#
+# Instalacao do GoReleaser / GoReleaser installation:
+#   go install github.com/goreleaser/goreleaser/v2@latest
+#
+# Uso local / Local usage:
+#   goreleaser release --snapshot --clean        # teste sem publicar / test without publishing
+#   goreleaser release --clean                    # publica no GitHub / publish to GitHub
+#
+# CI/CD (GitHub Actions): veja /.github/workflows/release.yml
+# =============================================================================
+
+# Versao do schema GoReleaser / GoReleaser schema version
+version: 2
+
+# ---------------------------------------------------------------------------
+# Informacoes do projeto / Project information
+# ---------------------------------------------------------------------------
+project_name: flang
+
+# ---------------------------------------------------------------------------
+# Configuracoes de ambiente / Environment settings
+# ---------------------------------------------------------------------------
+env:
+  - GO111MODULE=on
+  - CGO_ENABLED=0
+
+# ---------------------------------------------------------------------------
+# Hooks antes do build / Pre-build hooks
+# ---------------------------------------------------------------------------
+before:
+  hooks:
+    # Garante que dependencias estao atualizadas / Ensure dependencies are up-to-date
+    - go mod tidy
+    - go mod verify
+    # Roda testes antes de publicar / Run tests before publishing
+    - go test ./... -count=1 -timeout 60s
+
+# ---------------------------------------------------------------------------
+# Configuracao de build / Build configuration
+# ---------------------------------------------------------------------------
+builds:
+  - id: flang
+    main: ./main.go
+    binary: flang
+
+    # Flags de compilacao / Build flags
+    flags:
+      - -trimpath
+
+    # Flags do linker (reduz tamanho, embute versao)
+    # Linker flags (reduce size, embed version)
+    ldflags:
+      - -s -w
+      - -X main.Version={{.Version}}
+      - -X main.BuildDate={{.Date}}
+      - -X main.Commit={{.ShortCommit}}
+
+    # Plataformas alvo / Target platforms
+    goos:
+      - linux
+      - windows
+      - darwin
+
+    goarch:
+      - amd64
+      - arm64
+      - arm
+
+    # Restricoes por plataforma / Platform restrictions
+    ignore:
+      # arm32 apenas no Linux (Raspberry Pi)
+      - goos: windows
+        goarch: arm
+      - goos: darwin
+        goarch: arm
+
+    # Variaveis de ambiente por plataforma / Per-platform environment variables
+    overrides:
+      # Windows nao precisa de flags especiais / Windows doesn't need special flags
+      - goos: windows
+        goarch: amd64
+        goenv:
+          - CGO_ENABLED=0
+
+      # macOS arm64 (Apple Silicon)
+      - goos: darwin
+        goarch: arm64
+        goenv:
+          - CGO_ENABLED=0
+
+    # Modificacao do nome do binario por plataforma
+    # Binary name modification per platform
+    # (GoReleaser adiciona .exe automaticamente no Windows)
+    # (GoReleaser automatically adds .exe on Windows)
+
+# ---------------------------------------------------------------------------
+# Arquivos Universal Binary macOS / macOS Universal Binary
+# Combina amd64 + arm64 em um unico binario / Combines amd64 + arm64 in one binary
+# ---------------------------------------------------------------------------
+universal_binaries:
+  - id: flang-darwin-universal
+    ids:
+      - flang
+    replace: false
+    name_template: "flang-universal"
+
+# ---------------------------------------------------------------------------
+# Configuracao de archives / Archive configuration
+# ---------------------------------------------------------------------------
+archives:
+  - id: flang-archive
+    ids:
+      - flang
+
+    # Formato por plataforma / Format per platform
+    format: tar.gz
+    format_overrides:
+      - goos: windows
+        format: zip
+
+    # Template do nome do arquivo / Filename template
+    name_template: >-
+      flang-
+      {{- .Version }}-
+      {{- .Os }}-
+      {{- .Arch }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+
+    # Arquivos incluidos no archive / Files included in archive
+    files:
+      - README.md
+      - LICENSE
+      - docs/*
+      - exemplos/**/*
+      - installer/linux/install.sh
+      - installer/linux/uninstall.sh
+
+    # Mapeamento de caminhos no archive / Path mapping in archive
+    # (renomeia exemplos/ para examples/ no archive)
+    # (renames exemplos/ to examples/ in archive)
+
+# ---------------------------------------------------------------------------
+# Checksums
+# ---------------------------------------------------------------------------
+checksum:
+  name_template: "checksums.sha256"
+  algorithm: sha256
+
+# ---------------------------------------------------------------------------
+# Assinatura (opcional, requer GPG) / Signing (optional, requires GPG)
+# ---------------------------------------------------------------------------
+# signs:
+#   - artifacts: checksum
+#     args:
+#       - "--batch"
+#       - "-u"
+#       - "{{ .Env.GPG_FINGERPRINT }}"
+#       - "--output"
+#       - "${signature}"
+#       - "--detach-sign"
+#       - "${artifact}"
+
+# ---------------------------------------------------------------------------
+# Snapshot (build local sem publicar) / Snapshot (local build without publishing)
+# ---------------------------------------------------------------------------
+snapshot:
+  # Template do nome para snapshots / Name template for snapshots
+  version_template: "{{ incpatch .Version }}-SNAPSHOT-{{.ShortCommit}}"
+
+# ---------------------------------------------------------------------------
+# Changelog automatico / Automatic changelog
+# ---------------------------------------------------------------------------
+changelog:
+  # Ordena por tipo de commit / Sort by commit type
+  sort: asc
+
+  # Usa commitizen/conventional commits
+  use: github
+
+  filters:
+    # Exclui commits de merge e estilo / Exclude merge and style commits
+    exclude:
+      - "^Merge "
+      - "^merge "
+      - "typo"
+      - "wip:"
+      - "WIP:"
+
+  # Agrupamento por tipo / Grouping by type
+  groups:
+    - title: "Novas funcionalidades / New Features"
+      regexp: '^feat(\(.+\))?\!?:.+'
+      order: 0
+    - title: "Correcoes de bugs / Bug Fixes"
+      regexp: '^fix(\(.+\))?\!?:.+'
+      order: 1
+    - title: "Performance"
+      regexp: '^perf(\(.+\))?\!?:.+'
+      order: 2
+    - title: "Documentacao / Documentation"
+      regexp: '^docs(\(.+\))?\!?:.+'
+      order: 3
+    - title: "Refatoracao / Refactoring"
+      regexp: '^refactor(\(.+\))?\!?:.+'
+      order: 4
+    - title: "Outros / Other Changes"
+      order: 999
+
+# ---------------------------------------------------------------------------
+# Configuracao do GitHub Release / GitHub Release configuration
+# ---------------------------------------------------------------------------
+release:
+  # Repositorio GitHub / GitHub repository
+  github:
+    owner: flavio
+    name: flang
+
+  # Nome do release / Release name
+  name_template: "Flang v{{.Version}}"
+
+  # Corpo do release / Release body (abaixo do changelog automatico)
+  # Body of the release (below the automatic changelog)
+  header: |
+    ## Flang v{{.Version}}
+
+    Bem-vindo a mais uma versao do Flang! / Welcome to another Flang release!
+
+    ### Instalacao rapida / Quick Install
+
+    **Linux/macOS:**
+    ```bash
+    curl -fsSL https://raw.githubusercontent.com/flavio/flang/main/installer/linux/install.sh | bash
+    ```
+
+    **Windows (PowerShell):**
+    ```powershell
+    irm https://raw.githubusercontent.com/flavio/flang/main/installer/windows/install.ps1 | iex
+    ```
+
+  footer: |
+    ---
+    **Checksums:** Verifique `checksums.sha256` / Verify `checksums.sha256`
+
+    **Documentacao:** https://github.com/flavio/flang/blob/main/README.md
+
+    Obrigado a todos os contribuidores! / Thank you to all contributors!
+
+  # Marca como pre-release se for snapshot / Mark as pre-release if snapshot
+  prerelease: auto
+
+  # Modo de draft: false para publicar diretamente
+  # Draft mode: false to publish directly
+  draft: false
+
+  # Desabilita automaticamente se nao houver GITHUB_TOKEN
+  # Auto-disabled if no GITHUB_TOKEN
+  disable: '{{ if not .Env.GITHUB_TOKEN }}true{{ else }}false{{ end }}'
+
+# ---------------------------------------------------------------------------
+# Publicacao em gerenciadores de pacotes / Package manager publishing
+# ---------------------------------------------------------------------------
+
+# Homebrew (macOS/Linux) - descomente quando tiver um tap proprio
+# Homebrew (macOS/Linux) - uncomment when you have your own tap
+# brews:
+#   - name: flang
+#     repository:
+#       owner: flavio
+#       name: homebrew-tap
+#     directory: Formula
+#     homepage: https://github.com/flavio/flang
+#     description: "Linguagem de programacao declarativa full-stack"
+#     license: MIT
+#     install: |
+#       bin.install "flang"
+#     test: |
+#       system "#{bin}/flang", "version"
+
+# Scoop (Windows) - descomente quando tiver um bucket proprio
+# Scoop (Windows) - uncomment when you have your own bucket
+# scoops:
+#   - name: flang
+#     repository:
+#       owner: flavio
+#       name: scoop-bucket
+#     homepage: https://github.com/flavio/flang
+#     description: "Linguagem de programacao declarativa full-stack"
+#     license: MIT
+
+# ---------------------------------------------------------------------------
+# Docker (opcional) / Docker (optional)
+# ---------------------------------------------------------------------------
+# dockers:
+#   - image_templates:
+#       - "ghcr.io/flavio/flang:{{ .Version }}-amd64"
+#       - "ghcr.io/flavio/flang:latest-amd64"
+#     dockerfile: Dockerfile
+#     use: buildx
+#     build_flag_templates:
+#       - "--platform=linux/amd64"
+#       - "--label=org.opencontainers.image.version={{.Version}}"
+
+# ---------------------------------------------------------------------------
+# Metadata / Metadata
+# ---------------------------------------------------------------------------
+metadata:
+  mod_timestamp: "{{ .CommitTimestamp }}"
