@@ -1,0 +1,1362 @@
+# Flang — Especificação da Linguagem (Language Specification)
+
+> Versão 0.2.0 | Última atualização: 2026-04-09
+
+---
+
+## Sumário
+
+1. [Visão Geral](#1-visão-geral)
+2. [Formato de Arquivo](#2-formato-de-arquivo)
+3. [Sintaxe Fundamental](#3-sintaxe-fundamental)
+4. [Palavras-Chave Completas](#4-palavras-chave-completas)
+5. [Blocos de Nível Superior](#5-blocos-de-nível-superior)
+6. [Tipos de Dados](#6-tipos-de-dados)
+7. [Modificadores de Campo](#7-modificadores-de-campo)
+8. [Relacionamentos](#8-relacionamentos)
+9. [Componentes de Tela](#9-componentes-de-tela)
+10. [Eventos](#10-eventos)
+11. [Lógica e Regras](#11-lógica-e-regras)
+12. [Autenticação](#12-autenticação)
+13. [Integrações](#13-integrações)
+14. [Tema](#14-tema)
+15. [Sistema de Importação](#15-sistema-de-importação)
+16. [Banco de Dados](#16-banco-de-dados)
+17. [Operadores](#17-operadores)
+18. [Palavras Reservadas](#18-palavras-reservadas)
+19. [Gramática Formal (EBNF)](#19-gramática-formal-ebnf)
+
+---
+
+## 1. Visão Geral
+
+Flang é uma linguagem de programação declarativa bilíngue (Português/Inglês) que gera aplicações full-stack completas a partir de arquivos `.fg`. Um único arquivo `.fg` descreve modelos de dados, telas, eventos, autenticação, integrações e configurações de banco de dados — e o motor Flang (escrito em Go) gera e executa tudo automaticamente.
+
+**Características principais:**
+- Sintaxe declarativa baseada em indentação (sem chaves, sem ponto-e-vírgula)
+- Bilíngue: cada palavra-chave existe em Português e em Inglês
+- API REST gerada automaticamente para cada modelo
+- Banco de dados integrado (SQLite padrão, PostgreSQL e MySQL suportados)
+- Servidor web embutido com WebSocket
+- Autenticação JWT com bcrypt integrada
+- Suporte a Soft Delete, paginação, filtros, busca e exportação
+
+---
+
+## 2. Formato de Arquivo
+
+| Atributo | Valor |
+|---|---|
+| Extensão | `.fg` |
+| Codificação | UTF-8 |
+| Terminador de linha | `\n` (LF) ou `\r\n` (CRLF, ignorado) |
+| Indentação | Espaços ou tabs (2 espaços por nível recomendado; tab = 2 espaços) |
+| Sensibilidade a maiúsculas | Insensível (case-insensitive) para palavras-chave |
+
+**Arquivo mínimo válido:**
+
+```flang
+sistema meuapp
+```
+
+**Arquivo de exemplo completo:**
+
+```flang
+sistema loja
+
+dados
+
+  produto
+    nome: texto obrigatorio
+    preco: dinheiro obrigatorio
+    descricao: texto_longo
+    ativo: booleano padrao "true"
+
+telas
+
+  tela produtos
+    titulo "Produtos"
+    lista produto
+      mostrar nome
+      mostrar preco
+    botao verde
+      texto "Novo Produto"
+
+eventos
+
+  quando clicar "Novo Produto"
+    criar produto
+```
+
+---
+
+## 3. Sintaxe Fundamental
+
+### 3.1 Indentação
+
+Flang usa indentação para delimitar blocos — **não** usa chaves `{}` nem palavras `begin/end`.
+
+- O nível de indentação é detectado automaticamente por contagem de espaços
+- Tabs são convertidos internamente: 1 tab = 2 espaços
+- Inconsistências de indentação podem causar erros de parsing
+- O parser usa tokens `INDENT` para rastrear a hierarquia
+
+```flang
+dados          # bloco de nível superior (indentação 0)
+
+  produto      # modelo (indentação 2)
+    nome: texto  # campo (indentação 4)
+```
+
+### 3.2 Comentários
+
+Flang suporta dois estilos de comentário — ambos comentam até o fim da linha:
+
+```flang
+// Comentário estilo C/Go
+# Comentário estilo Python/Shell
+
+sistema minhaApp  // comentário inline
+```
+
+### 3.3 Strings
+
+- Delimitadas por aspas duplas `"..."`
+- Strings não podem conter quebras de linha (são de linha única)
+- Sequências de escape suportadas:
+
+| Escape | Significado |
+|---|---|
+| `\"` | Aspas duplas |
+| `\\` | Barra invertida |
+| `\n` | Nova linha |
+| `\t` | Tab |
+
+```flang
+titulo "Minha Aplicação"
+mensagem "Olá, {nome}!\nBem-vindo ao sistema."
+```
+
+### 3.4 Números
+
+- Literais numéricos: inteiros e decimais com ponto
+- Exemplos: `42`, `3.14`, `1000`, `0.5`
+
+### 3.5 Identificadores
+
+- Podem conter letras (Unicode), dígitos e underscores `_`
+- Não podem começar com dígito
+- Case-insensitive para palavras-chave; case-sensitive para nomes de modelos/campos
+- Exemplos válidos: `produto`, `nomeCliente`, `data_nascimento`, `Produto2`
+
+### 3.6 Blocos
+
+Blocos são seções de nível superior identificadas por palavras-chave reservadas. Cada bloco começa na coluna 0 e seu conteúdo é indentado:
+
+```flang
+dados          # início do bloco 'dados'
+
+  modelo       # conteúdo do bloco
+    campo: tipo
+
+telas          # próximo bloco de nível superior
+```
+
+---
+
+## 4. Palavras-Chave Completas
+
+### 4.1 Blocos de Nível Superior
+
+| Português | Inglês | Token | Descrição |
+|---|---|---|---|
+| `sistema` | `system` | `TokenSistema` | Nome da aplicação |
+| `dados` | `models` | `TokenDados` | Define os modelos de dados |
+| `telas` | `screens` | `TokenTelas` | Define as telas da UI |
+| `acoes` | `actions` | `TokenAcoes` | Define ações nomeadas |
+| `eventos` | `events` | `TokenEventos` | Define handlers de eventos |
+| `integracoes` | `integrations` | `TokenIntegracoes` | Configurações de integrações |
+| `tema` | `theme` | `TokenTema` | Tema visual da aplicação |
+| `logica` | `logic` | `TokenLogica` | Regras de negócio |
+| `banco` | `database` / `db` | `TokenBanco` | Configuração do banco de dados |
+| `autenticacao` | `auth` / `authentication` | `TokenAutenticacao` | Configuração de autenticação |
+| `config` | `config` | `TokenConfig` | Configurações gerais |
+
+### 4.2 Importação
+
+| Português | Inglês | Token | Descrição |
+|---|---|---|---|
+| `importar` | `import` | `TokenImportar` | Importa arquivo externo |
+| `de` | `from` | `TokenDe` | Especifica origem do import |
+
+### 4.3 Palavras-Chave de Tela
+
+| Português | Inglês | Token | Descrição |
+|---|---|---|---|
+| `tela` | `screen` | `TokenTela` | Define uma tela |
+| `titulo` | `title` | `TokenTitulo` | Título da tela |
+| `lista` | `list` | `TokenLista` | Componente de listagem |
+| `mostrar` | `show` | `TokenMostrar` | Exibe um campo |
+| `botao` | `button` | `TokenBotao` | Componente de botão |
+| `formulario` | `form` | `TokenFormulario` | Componente de formulário |
+| `entrada` | `input` | `TokenEntrada` | Campo de entrada |
+| `busca` | `search` | `TokenBusca` | Campo de busca |
+| `dashboard` | `dashboard` | `TokenDashboard` | Painel de controle |
+| `grafico` | `chart` | `TokenGrafico` | Componente de gráfico |
+| `tabela` | `table` | `TokenTabela` | Componente de tabela |
+| `campo` | `field` | `TokenCampo` | Referência a campo |
+| `selecionar` | `select` | `TokenSelecionar` | Dropdown/select |
+| `area_texto` | `textarea` | `TokenAreaTexto` | Área de texto longo |
+
+### 4.4 Tipos de Dados
+
+| Português | Inglês | Token | Descrição |
+|---|---|---|---|
+| `texto` | `text` | `TokenTexto` | Texto curto |
+| `numero` | `number` | `TokenNumero` | Número (inteiro ou decimal) |
+| `data` | `date` | `TokenData` | Data e hora |
+| `booleano` | `boolean` | `TokenBooleano` | Verdadeiro/Falso |
+| `email` | `email` | `TokenEmail` | Endereço de e-mail |
+| `telefone` | `phone` | `TokenTelefone` | Número de telefone |
+| `imagem` | `image` | `TokenImagem` | Upload de imagem |
+| `arquivo` | `file` | `TokenArquivo` | Upload de arquivo genérico |
+| `upload` | `upload` | `TokenUpload` | Upload genérico |
+| `link` | `link` | `TokenLink` | URL/hyperlink |
+| `status` | `status` | `TokenStatus` | Campo de status/estado |
+| `dinheiro` | `money` / `currency` | `TokenDinheiro` | Valor monetário |
+| `senha` | `password` | `TokenSenha` | Senha (armazenada com hash) |
+| `texto_longo` | `long_text` | `TokenTextoLongo` | Texto longo (textarea) |
+| `enum` | `enum` | `TokenEnum` | Enumeração de valores |
+
+### 4.5 Eventos
+
+| Português | Inglês | Token | Descrição |
+|---|---|---|---|
+| `quando` | `when` | `TokenQuando` | Define trigger de evento |
+| `clicar` | `click` | `TokenClicar` | Evento de clique |
+| `criar` | `create` | `TokenCriar` | Evento de criação de registro |
+| `atualizar` | `update` | `TokenAtualizar` | Evento de atualização |
+| `deletar` | `delete` | `TokenDeletar` | Evento de exclusão |
+| `enviar` | `send` | `TokenEnviar` | Evento de envio (formulário) |
+
+### 4.6 Lógica
+
+| Português | Inglês | Token | Descrição |
+|---|---|---|---|
+| `se` | `if` | `TokenSe` | Condicional |
+| `senao` | `else` | `TokenSenao` | Alternativa condicional |
+| `igual` | `equals` / `equal` | `TokenIgual` | Operador de igualdade |
+| `maior` | `greater` | `TokenMaior` | Operador maior que |
+| `menor` | `less` | `TokenMenor` | Operador menor que |
+| `e` | `and` | `TokenE` | Operador lógico E |
+| `ou` | `or` | `TokenOu` | Operador lógico OU |
+| `entao` | `then` | `TokenEntao` | Consequência de condição |
+| `validar` | `validate` | `TokenValidar` | Regra de validação |
+| `calcular` | `compute` | `TokenCalcular` | Cálculo derivado |
+| `definir` | `set` | `TokenDefinir` | Atribuição de valor |
+| `retornar` | `return` | `TokenRetornar` | Retorno de valor |
+| `mudar` | `change` | `TokenMudar` | Mudança de estado |
+| `para` | `to` | `TokenPara` | Destino de atribuição |
+| `para_cada` | `for_each` | `TokenParaCada` | Iteração |
+| `funcao` | `function` | `TokenFuncao` | Definição de função |
+| `tentar` | `try` | `TokenTentar` | Tratamento de erro |
+| `erro` | `error` | `TokenErro` | Bloco de erro |
+
+### 4.7 Autenticação
+
+| Português | Inglês | Token | Descrição |
+|---|---|---|---|
+| `login` | `login` | `TokenLogin` | Configuração de login |
+| `registro` | `register` | `TokenRegistro` | Configuração de registro |
+| `usuario` | `user` | `TokenUsuario` | Modelo de usuário |
+| `permissao` | `permission` | `TokenPermissao` | Definição de permissão |
+| `requer` | `requires` | `TokenRequer` | Restrição de acesso |
+| `admin` | `admin` | `TokenAdmin` | Papel de administrador |
+| `publico` | `public` | `TokenPublico` | Acesso público (sem auth) |
+
+### 4.8 Integrações
+
+| Português | Inglês | Token | Descrição |
+|---|---|---|---|
+| `whatsapp` | `whatsapp` | `TokenWhatsapp` | Integração WhatsApp |
+| `mensagem` | `message` | `TokenMensagem` | Conteúdo de mensagem |
+| `notificar` | `notify` | `TokenNotificar` | Dispara notificação |
+| `cron` | `cron` | `TokenCron` | Job agendado |
+| `cada` | `every` | `TokenCada` | Intervalo de repetição |
+| `hora` | `hour` | `TokenHora` | Unidade de tempo: hora |
+| `minuto` | `minute` | `TokenMinuto` | Unidade de tempo: minuto |
+| `chamar` | `call` | `TokenChamar` | Chama URL externa |
+| `api` | `api` | `TokenApi` | Referência a API |
+| `webhook` | `webhook` | `TokenWebhook` | Webhook HTTP |
+| `pagamento` | `payment` | `TokenPagamento` | Integração de pagamento |
+
+### 4.9 Relacionamentos
+
+| Português | Inglês | Token | Descrição |
+|---|---|---|---|
+| `pertence_a` | `belongs_to` | `TokenPertenceA` | Chave estrangeira (N→1) |
+| `tem_muitos` | `has_many` | `TokenTemMuitos` | Relacionamento 1→N |
+| `muitos_para_muitos` | `many_to_many` | `TokenMuitosParaMuitos` | Relacionamento N→N |
+
+### 4.10 Tema
+
+| Português | Inglês | Token | Descrição |
+|---|---|---|---|
+| `cor` | `color` | `TokenCor` | Define cor |
+| `icone` | `icon` | `TokenIcone` | Define ícone |
+| `escuro` | `dark` | `TokenEscuro` | Modo escuro |
+
+### 4.11 Modificadores
+
+| Português | Inglês | Token | Descrição |
+|---|---|---|---|
+| `obrigatorio` | `required` | `TokenObrigatorio` | Campo obrigatório (NOT NULL) |
+| `unico` | `unique` | `TokenUnico` | Valor único (UNIQUE) |
+| `padrao` | `default` | `TokenPadrao` | Valor padrão |
+| `indice` | `index` | `TokenIndice` | Cria índice no banco |
+| `soft_delete` | *(apenas PT)* | `TokenSoftDelete` | Exclusão suave (marca deletado_em) |
+
+---
+
+## 5. Blocos de Nível Superior
+
+### 5.1 `sistema` / `system`
+
+Declara o nome da aplicação. Deve ser a primeira declaração do arquivo.
+
+**Gramática:**
+```
+sistema_block = "sistema" IDENTIFIER
+```
+
+**Exemplo:**
+```flang
+sistema minhaLoja
+```
+```flang
+system "My Store"
+```
+
+### 5.2 `dados` / `models`
+
+Declara os modelos de dados. Cada modelo gera automaticamente:
+- Uma tabela no banco de dados
+- Endpoints REST completos (`GET`, `POST`, `PUT`, `DELETE`)
+- Colunas automáticas: `id` (PK auto-increment), `criado_em`, `atualizado_em`
+
+**Gramática:**
+```
+dados_block   = "dados" NEWLINE model+
+model         = IDENTIFIER modifier* NEWLINE field*
+field         = IDENTIFIER ":" type modifier* NEWLINE
+modifier      = "obrigatorio" | "unico" | "indice" | "padrao" STRING | relationship
+relationship  = "pertence_a" IDENTIFIER
+```
+
+**Exemplo:**
+```flang
+dados
+
+  cliente
+    nome: texto obrigatorio
+    email: email unico obrigatorio
+    telefone: telefone
+    ativo: booleano padrao "true"
+
+  pedido soft_delete
+    numero: texto unico
+    valor: dinheiro obrigatorio
+    status: status padrao "pendente"
+    cliente_id: numero pertence_a cliente
+```
+
+**Colunas automáticas geradas:**
+
+| Coluna | Tipo SQL | Descrição |
+|---|---|---|
+| `id` | `INTEGER PRIMARY KEY AUTOINCREMENT` | Identificador único |
+| `criado_em` | `DATETIME DEFAULT CURRENT_TIMESTAMP` | Data de criação |
+| `atualizado_em` | `DATETIME DEFAULT CURRENT_TIMESTAMP` | Data de atualização |
+| `deletado_em` | `DATETIME DEFAULT NULL` | Somente se `soft_delete` ativo |
+
+### 5.3 `telas` / `screens`
+
+Declara as telas da interface do usuário. Cada tela é uma rota no frontend gerado.
+
+**Gramática:**
+```
+telas_block = "telas" NEWLINE screen+
+screen      = "tela" IDENTIFIER NEWLINE screen_item*
+screen_item = titulo | lista | botao | formulario | mostrar | busca
+```
+
+**Exemplo:**
+```flang
+telas
+
+  tela produtos
+    titulo "Catálogo de Produtos"
+    lista produto
+      mostrar nome
+      mostrar preco
+    botao verde
+      texto "Adicionar"
+```
+
+### 5.4 `eventos` / `events`
+
+Associa ações a gatilhos de interface.
+
+**Gramática:**
+```
+eventos_block = "eventos" NEWLINE event+
+event         = "quando" trigger [STRING] NEWLINE action_ref
+trigger       = "clicar" | "enviar" | "criar" | "atualizar" | "deletar"
+action_ref    = IDENTIFIER (IDENTIFIER)*
+```
+
+**Exemplo:**
+```flang
+eventos
+
+  quando clicar "Novo Produto"
+    criar produto
+
+  quando enviar formulario
+    salvar produto
+```
+
+### 5.5 `logica` / `logic`
+
+Define regras de negócio e validações condicionais.
+
+**Gramática:**
+```
+logica_block  = "logica" NEWLINE rule*
+rule          = "se" IDENTIFIER operator value NEWLINE action IDENTIFIER
+operator      = "igual" | "maior" | "menor"
+action        = "mudar" | "validar" | "calcular" | "definir" | "retornar"
+```
+
+**Exemplo:**
+```flang
+logica
+
+  se status igual "aprovado"
+    mudar cor verde
+
+  se valor maior 1000
+    notificar gerente
+
+  validar email obrigatorio
+```
+
+### 5.6 `autenticacao` / `auth`
+
+Configura o sistema de autenticação JWT.
+
+**Gramática:**
+```
+auth_block   = "autenticacao" NEWLINE auth_item*
+auth_item    = "usuario" IDENTIFIER
+             | "login" IDENTIFIER
+             | "permissao" IDENTIFIER+
+             | "publico"
+```
+
+**Exemplo:**
+```flang
+autenticacao
+
+  usuario cliente
+  login email
+  permissao admin gerente vendedor
+```
+
+### 5.7 `banco` / `database` / `db`
+
+Configura a conexão com banco de dados.
+
+**Gramática:**
+```
+banco_block = ("banco" | "database" | "db") NEWLINE banco_item*
+banco_item  = IDENTIFIER ":" (STRING | IDENTIFIER)
+```
+
+**Exemplo — SQLite (padrão):**
+```flang
+banco
+  driver: sqlite
+  nome: minha_loja.db
+```
+
+**Exemplo — PostgreSQL:**
+```flang
+banco
+  driver: postgres
+  host: "localhost"
+  porta: "5432"
+  nome: "minha_loja"
+  usuario: "postgres"
+  senha: "minhasenha"
+```
+
+**Exemplo — MySQL:**
+```flang
+banco
+  driver: mysql
+  host: "localhost"
+  porta: "3306"
+  nome: "minha_loja"
+  usuario: "root"
+  senha: "minhasenha"
+```
+
+### 5.8 `integracoes` / `integrations`
+
+Configura integrações externas (WhatsApp, e-mail, cron, webhooks).
+
+**Exemplo:**
+```flang
+integracoes
+
+  email
+    host: "smtp.gmail.com"
+    porta: "587"
+    usuario: "meu@gmail.com"
+    senha: "minhasenha"
+
+  cron
+    cada 1 hora
+      chamar "https://api.example.com/sync"
+
+  cron
+    cada 30 minutos
+      chamar "https://api.example.com/limpar"
+```
+
+### 5.9 `tema` / `theme`
+
+Personaliza a aparência visual.
+
+**Gramática:**
+```
+tema_block = "tema" NEWLINE tema_item*
+tema_item  = "cor" COLOR_NAME STRING
+           | "escuro"
+           | "icone" STRING
+```
+
+**Exemplo:**
+```flang
+tema
+  cor primaria "#6366f1"
+  cor secundaria "#8b5cf6"
+  cor destaque "#f59e0b"
+  cor sidebar "#1e1b4b"
+  escuro
+  icone "rocket"
+```
+
+**Cores de tema disponíveis:**
+
+| Chave PT | Chave EN | Descrição |
+|---|---|---|
+| `primaria` | `primary` | Cor principal |
+| `secundaria` | `secondary` | Cor secundária |
+| `destaque` | `accent` | Cor de destaque |
+| `sidebar` | `sidebar` | Cor da barra lateral |
+
+---
+
+## 6. Tipos de Dados
+
+### Tabela Completa de Tipos
+
+| Tipo PT | Tipo EN | SQL (SQLite/PG) | SQL MySQL | Input HTML | Validação |
+|---|---|---|---|---|---|
+| `texto` | `text` | `TEXT` | `VARCHAR(500)` | `<input type="text">` | — |
+| `numero` | `number` | `REAL` | `REAL` | `<input type="number">` | — |
+| `data` | `date` | `DATETIME` | `DATETIME` | `<input type="date">` | — |
+| `booleano` | `boolean` | `INTEGER` | `INTEGER` | `<input type="checkbox">` | — |
+| `email` | `email` | `TEXT` | `VARCHAR(500)` | `<input type="email">` | Deve conter `@` e `.` |
+| `telefone` | `phone` | `TEXT` | `VARCHAR(500)` | `<input type="tel">` | Mínimo 7 dígitos |
+| `imagem` | `image` | `TEXT` | `VARCHAR(500)` | `<input type="file">` | — |
+| `arquivo` | `file` | `TEXT` | `VARCHAR(500)` | `<input type="file">` | — |
+| `upload` | `upload` | `TEXT` | `VARCHAR(500)` | `<input type="file">` | — |
+| `link` | `link` | `TEXT` | `VARCHAR(500)` | `<input type="url">` | — |
+| `status` | `status` | `TEXT` | `VARCHAR(500)` | `<select>` | — |
+| `dinheiro` | `money` / `currency` | `REAL` | `REAL` | `<input type="number">` | — |
+| `senha` | `password` | `TEXT` | `VARCHAR(500)` | `<input type="password">` | Mín. 6 chars |
+| `texto_longo` | `long_text` | `TEXT` | `VARCHAR(500)` | `<textarea>` | — |
+| `enum` | `enum` | `TEXT` | `VARCHAR(500)` | `<select>` | — |
+
+### Notas de Tipo
+
+**`booleano` / `boolean`:** Armazenado como `INTEGER` (0 = falso, 1 = verdadeiro). Use `padrao "true"` ou `padrao "false"`.
+
+**`dinheiro` / `money`:** Armazenado como `REAL`. Para precisão monetária em produção, recomenda-se usar `numero` e operar em centavos.
+
+**`senha` / `password`:** O valor recebido pela API é automaticamente hasheado com bcrypt (custo padrão) antes do armazenamento. O hash nunca é retornado nas respostas da API.
+
+**`status`:** Campo especial que habilita agrupamento por status na rota `GET /api/_stats`. Recomenda-se usar com `padrao`.
+
+**`imagem` / `arquivo` / `upload`:** Armazenam o caminho do arquivo no servidor (ex: `/uploads/1234567890.jpg`). O upload real é feito via `POST /upload`.
+
+---
+
+## 7. Modificadores de Campo
+
+Modificadores são aplicados após o tipo do campo na mesma linha:
+
+```flang
+campo: tipo modificador1 modificador2 ...
+```
+
+| Modificador PT | Modificador EN | Efeito SQL | Efeito de Validação |
+|---|---|---|---|
+| `obrigatorio` | `required` | `NOT NULL` | Erro se campo ausente ou vazio |
+| `unico` | `unique` | `UNIQUE` | Erro se valor duplicado |
+| `padrao "valor"` | `default "value"` | `DEFAULT 'valor'` | Preenche automaticamente se omitido |
+| `indice` | `index` | Cria `INDEX` no campo | Acelera buscas neste campo |
+| `soft_delete` | *(no model level)* | Adiciona coluna `deletado_em` | DELETE marca ao invés de remover |
+
+**Exemplos:**
+
+```flang
+dados
+
+  produto
+    nome: texto obrigatorio unico
+    preco: dinheiro obrigatorio padrao "0"
+    estoque: numero padrao "0" indice
+    sku: texto unico indice
+    ativo: booleano padrao "true"
+
+  pedido soft_delete
+    numero: texto unico obrigatorio
+    status: status padrao "pendente"
+```
+
+---
+
+## 8. Relacionamentos
+
+### 8.1 `pertence_a` / `belongs_to` — Muitos para Um (N→1)
+
+Cria uma chave estrangeira no modelo atual apontando para outro modelo.
+
+```flang
+dados
+
+  categoria
+    nome: texto obrigatorio
+
+  produto
+    nome: texto obrigatorio
+    categoria_id: numero pertence_a categoria
+```
+
+Isso gera:
+```sql
+"categoria_id" REAL REFERENCES "categoria"("id")
+```
+
+### 8.2 `tem_muitos` / `has_many` — Um para Muitos (1→N)
+
+Declaração semântica no modelo pai (não cria coluna extra, a FK fica no filho).
+
+```flang
+dados
+
+  cliente
+    nome: texto
+    // tem_muitos pedido  -- referência semântica
+    pedidos: tem_muitos pedido
+
+  pedido
+    valor: dinheiro
+    cliente_id: numero pertence_a cliente
+```
+
+### 8.3 `muitos_para_muitos` / `many_to_many` — N→N
+
+```flang
+dados
+
+  produto
+    nome: texto
+    categorias: muitos_para_muitos categoria
+
+  categoria
+    nome: texto
+```
+
+---
+
+## 9. Componentes de Tela
+
+### 9.1 `lista` / `list`
+
+Exibe registros de um modelo em forma de lista ou tabela.
+
+```flang
+lista <modelo>
+  mostrar <campo>
+  mostrar <campo>
+```
+
+**Exemplo:**
+```flang
+lista produto
+  mostrar nome
+  mostrar preco
+  mostrar ativo
+```
+
+### 9.2 `mostrar` / `show`
+
+Exibe um campo específico dentro de um componente `lista` ou na tela.
+
+```flang
+mostrar nome
+mostrar email
+mostrar criado_em
+```
+
+### 9.3 `botao` / `button`
+
+Componente clicável com cor e texto opcionais.
+
+```flang
+botao <cor>
+  texto "Rótulo do Botão"
+```
+
+**Cores predefinidas:** `azul` (blue), `verde` (green), `vermelho` (red) — e qualquer outro identificador de cor.
+
+**Exemplo:**
+```flang
+botao azul
+  texto "Novo Produto"
+
+botao vermelho
+  texto "Excluir"
+
+botao verde
+  texto "Salvar"
+```
+
+### 9.4 `formulario` / `form`
+
+Gera um formulário para criação/edição de um modelo.
+
+```flang
+formulario <modelo>
+```
+
+**Exemplo:**
+```flang
+formulario produto
+```
+
+### 9.5 `busca` / `search`
+
+Campo de busca em tempo real.
+
+```flang
+busca <modelo>
+```
+
+### 9.6 `titulo` / `title`
+
+Define o título visível da tela.
+
+```flang
+titulo "Gerenciamento de Produtos"
+```
+
+### 9.7 `entrada` / `input`
+
+Campo de entrada individual dentro de um formulário.
+
+```flang
+entrada nome
+entrada email obrigatorio
+```
+
+### 9.8 `selecionar` / `select`
+
+Dropdown de seleção.
+
+```flang
+selecionar status
+  opcao "ativo"
+  opcao "inativo"
+```
+
+### 9.9 `area_texto` / `textarea`
+
+Área de texto para conteúdo longo.
+
+```flang
+area_texto descricao
+```
+
+### 9.10 `grafico` / `chart`
+
+Componente de visualização gráfica.
+
+```flang
+grafico vendas
+```
+
+### 9.11 `dashboard`
+
+Painel de controle com métricas agregadas.
+
+```flang
+dashboard
+  titulo "Painel Administrativo"
+```
+
+---
+
+## 10. Eventos
+
+Eventos associam gatilhos de interface a ações.
+
+**Sintaxe:**
+```flang
+quando <gatilho> [<alvo>]
+  <acao> [<argumento>]
+```
+
+### Gatilhos Disponíveis
+
+| Gatilho PT | Gatilho EN | Descrição |
+|---|---|---|
+| `clicar` | `click` | Usuário clicou em um botão |
+| `enviar` | `send` | Formulário foi enviado |
+| `criar` | `create` | Registro foi criado |
+| `atualizar` | `update` | Registro foi atualizado |
+| `deletar` | `delete` | Registro foi deletado |
+
+### Exemplos
+
+```flang
+eventos
+
+  quando clicar "Novo Produto"
+    criar produto
+
+  quando clicar "Salvar"
+    atualizar produto
+
+  quando clicar "Excluir"
+    deletar produto
+
+  quando enviar formulario
+    salvar cliente
+
+  quando criar pedido
+    notificar cliente
+```
+
+---
+
+## 11. Lógica e Regras
+
+O bloco `logica` permite definir regras de negócio condicionais.
+
+### 11.1 Regras Condicionais
+
+```flang
+logica
+
+  se <campo> <operador> <valor>
+    <acao> <argumento>
+```
+
+**Exemplo:**
+```flang
+logica
+
+  se status igual "aprovado"
+    mudar cor verde
+
+  se valor maior 5000
+    notificar administrador
+
+  se estoque menor 10
+    alertar "Estoque baixo"
+```
+
+### 11.2 Validações
+
+```flang
+logica
+
+  validar email obrigatorio
+  validar senha obrigatorio
+  validar cpf unico
+```
+
+### 11.3 Operadores de Condição
+
+| Operador PT | Operador EN | Símbolo lógico |
+|---|---|---|
+| `igual` | `equals` / `equal` | `==` |
+| `maior` | `greater` | `>` |
+| `menor` | `less` | `<` |
+| `e` | `and` | `&&` |
+| `ou` | `or` | `\|\|` |
+
+---
+
+## 12. Autenticação
+
+### 12.1 Configuração
+
+```flang
+autenticacao
+
+  usuario cliente        # modelo que representa os usuários
+  login email            # campo usado para login
+  permissao admin gerente  # papéis/roles disponíveis
+```
+
+### 12.2 Como Funciona
+
+- Senhas armazenadas com **bcrypt** (custo padrão 10)
+- Tokens **JWT** com algoritmo **HMAC-SHA256** (HS256)
+- Expiração do token: **72 horas**
+- Token passado via header `Authorization: Bearer <token>` ou query `?token=<token>`
+
+### 12.3 Claims do JWT
+
+```json
+{
+  "id": 42,
+  "login": "usuario@email.com",
+  "role": "admin",
+  "exp": 1712765432
+}
+```
+
+### 12.4 Cabeçalhos Injetados pelo Middleware
+
+Após validação do token, o middleware injeta:
+
+| Header | Valor |
+|---|---|
+| `X-User-ID` | ID do usuário autenticado |
+| `X-User-Login` | Login (email/username) do usuário |
+| `X-User-Role` | Papel (role) do usuário |
+
+### 12.5 Regras de Acesso
+
+- **GET sem token:** Permitido por padrão (dados públicos)
+- **POST/PUT/DELETE sem token:** Negado (401)
+- **Rotas sempre públicas:** `/api/login`, `/api/registro`, `/api/register`, `/ws`, `/`
+- **Tela pública:** Use `publico` na definição da tela
+
+```flang
+telas
+
+  tela home
+    publico
+    titulo "Bem-vindo"
+
+  tela admin
+    requer admin
+    titulo "Painel Admin"
+```
+
+---
+
+## 13. Integrações
+
+### 13.1 WhatsApp
+
+```flang
+integracoes
+
+  whatsapp
+    notificar quando criar pedido
+      para telefone
+      mensagem "Novo pedido #{id} recebido!"
+```
+
+### 13.2 E-mail
+
+```flang
+integracoes
+
+  email
+    host: "smtp.gmail.com"
+    porta: "587"
+    usuario: "sistema@empresa.com"
+    senha: "apppassword"
+    de: "Sistema <sistema@empresa.com>"
+```
+
+**Notificação por e-mail:**
+```flang
+integracoes
+
+  notificar quando criar usuario
+    canal email
+    para email
+    assunto "Bem-vindo ao sistema!"
+    mensagem "Olá {nome}, sua conta foi criada."
+```
+
+### 13.3 Cron Jobs
+
+Cron jobs executam em goroutines em background e suportam chamadas HTTP a URLs externas.
+
+```flang
+integracoes
+
+  cron
+    cada 1 hora
+      chamar "https://api.external.com/sync"
+
+  cron
+    cada 30 minutos
+      chamar "https://meuapp.com/api/limpeza"
+
+  cron
+    cada 1 dia
+      chamar "https://api.example.com/relatorio"
+```
+
+**Unidades de tempo suportadas:**
+
+| PT | EN | Exemplo |
+|---|---|---|
+| `segundo(s)` | `second(s)` | `cada 30 segundos` |
+| `minuto(s)` | `minute(s)` | `cada 5 minutos` |
+| `hora(s)` | `hour(s)` | `cada 1 hora` |
+| `dia(s)` | `day(s)` | `cada 1 dia` |
+
+### 13.4 Webhook
+
+```flang
+integracoes
+
+  webhook quando criar pedido
+    url "https://api.example.com/webhook"
+    metodo "POST"
+```
+
+### 13.5 Templates de Mensagem
+
+Campos do registro podem ser interpolados em mensagens usando `{nome_do_campo}`:
+
+```
+"Olá {nome}, seu pedido #{id} foi {status} em {criado_em}"
+```
+
+---
+
+## 14. Tema
+
+O tema define a aparência visual da interface gerada.
+
+```flang
+tema
+  cor primaria "#6366f1"      # cor principal (botões, links)
+  cor secundaria "#8b5cf6"   # cor secundária
+  cor destaque "#f59e0b"     # cor de destaque
+  cor sidebar "#1e1b4b"      # cor da barra lateral
+  escuro                      # ativa modo escuro
+  icone "rocket"              # ícone do app (emoji ou nome)
+```
+
+**Valores padrão:**
+
+| Propriedade | Padrão |
+|---|---|
+| `primaria` | `#6366f1` (índigo) |
+| `secundaria` | `#8b5cf6` (violeta) |
+| `destaque` | `#f59e0b` (âmbar) |
+| `sidebar` | `#1e1b4b` (azul escuro) |
+| `escuro` | `false` |
+| `icone` | *(vazio)* |
+
+---
+
+## 15. Sistema de Importação
+
+Flang permite dividir o código em múltiplos arquivos `.fg` e importá-los.
+
+### 15.1 Sintaxe
+
+```flang
+# Importar tudo de um arquivo
+importar "modelos.fg"
+
+# Importar seleção específica
+importar dados de "modelos.fg"
+importar tela de "telas/clientes.fg"
+
+# Inglês equivalente
+import "models.fg"
+import models from "models.fg"
+```
+
+### 15.2 Regras de Importação
+
+- O caminho do arquivo é relativo ao arquivo principal
+- Importações são processadas recursivamente (imports dentro de imports são resolvidos)
+- Conflitos de modelos com mesmo nome: o último importado prevalece
+- `Theme`, `Auth` e `Email`: somente o primeiro encontrado é usado (não são sobrescritos)
+- Modelos, Telas, Eventos, Ações, Regras, Notificadores e Crons são **concatenados** (merged)
+
+### 15.3 Exemplo de Projeto Multi-arquivo
+
+```
+minha-loja/
+  inicio.fg         # arquivo principal
+  modelos/
+    produto.fg
+    cliente.fg
+    pedido.fg
+  telas/
+    produtos.fg
+    clientes.fg
+  auth.fg
+  tema.fg
+```
+
+**inicio.fg:**
+```flang
+sistema minhaLoja
+
+importar "auth.fg"
+importar "tema.fg"
+importar dados de "modelos/produto.fg"
+importar dados de "modelos/cliente.fg"
+importar dados de "modelos/pedido.fg"
+importar tela de "telas/produtos.fg"
+importar tela de "telas/clientes.fg"
+```
+
+---
+
+## 16. Banco de Dados
+
+### 16.1 Drivers Suportados
+
+| Driver | Configuração `driver:` | Padrão |
+|---|---|---|
+| SQLite | `sqlite` | Sim (default) |
+| PostgreSQL | `postgres` / `postgresql` | Não |
+| MySQL | `mysql` | Não |
+
+### 16.2 Configurações por Driver
+
+**SQLite:**
+```flang
+banco
+  driver: sqlite
+  nome: "app.db"       # opcional, padrão: <sistema>.db
+```
+- Usa WAL (Write-Ahead Logging) para performance
+- Foreign keys habilitadas automaticamente
+- Arquivo criado automaticamente no diretório corrente
+
+**PostgreSQL:**
+```flang
+banco
+  driver: postgres
+  host: "localhost"    # padrão: localhost
+  porta: "5432"        # padrão: 5432
+  nome: "minha_db"    # padrão: <sistema>
+  usuario: "postgres"  # padrão: postgres
+  senha: "senha123"
+```
+
+**MySQL:**
+```flang
+banco
+  driver: mysql
+  host: "localhost"    # padrão: localhost
+  porta: "3306"        # padrão: 3306
+  nome: "minha_db"    # padrão: <sistema>
+  usuario: "root"      # padrão: root
+  senha: "senha123"
+```
+
+### 16.3 Schema Gerado
+
+Para cada modelo `produto` com campos `nome: texto` e `preco: dinheiro`:
+
+**SQLite:**
+```sql
+CREATE TABLE IF NOT EXISTS "produto" (
+  "id"           INTEGER PRIMARY KEY AUTOINCREMENT,
+  "nome"         TEXT,
+  "preco"        REAL,
+  "criado_em"    DATETIME DEFAULT CURRENT_TIMESTAMP,
+  "atualizado_em" DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+**PostgreSQL:**
+```sql
+CREATE TABLE IF NOT EXISTS "produto" (
+  "id"           SERIAL PRIMARY KEY,
+  "nome"         TEXT,
+  "preco"        REAL,
+  "criado_em"    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  "atualizado_em" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+---
+
+## 17. Operadores
+
+### Operadores Aritméticos
+
+| Símbolo | Descrição |
+|---|---|
+| `+` | Adição |
+| `-` | Subtração |
+| `*` | Multiplicação |
+| `/` | Divisão |
+
+### Operadores de Comparação (em regras)
+
+| PT | EN | Significado |
+|---|---|---|
+| `igual` | `equal` / `equals` | Igualdade (`==`) |
+| `maior` | `greater` | Maior que (`>`) |
+| `menor` | `less` | Menor que (`<`) |
+
+### Operadores Lógicos (em regras)
+
+| PT | EN | Significado |
+|---|---|---|
+| `e` | `and` | E lógico (`&&`) |
+| `ou` | `or` | OU lógico (`\|\|`) |
+
+### Operadores de Atribuição
+
+| Símbolo | Descrição |
+|---|---|
+| `=` | Atribuição direta |
+| `:` | Declaração de tipo de campo |
+
+---
+
+## 18. Palavras Reservadas
+
+As seguintes palavras são reservadas e **não podem** ser usadas como nomes de modelos, campos ou variáveis:
+
+**Blocos:** `sistema`, `system`, `dados`, `models`, `telas`, `screens`, `acoes`, `actions`, `eventos`, `events`, `integracoes`, `integrations`, `tema`, `theme`, `logica`, `logic`, `banco`, `database`, `db`, `autenticacao`, `auth`, `authentication`, `config`
+
+**Tela:** `tela`, `screen`, `titulo`, `title`, `lista`, `list`, `mostrar`, `show`, `botao`, `button`, `formulario`, `form`, `entrada`, `input`, `busca`, `search`, `dashboard`, `grafico`, `chart`, `tabela`, `table`, `campo`, `field`, `selecionar`, `select`, `area_texto`, `textarea`
+
+**Tipos:** `texto`, `text`, `numero`, `number`, `data`, `date`, `booleano`, `boolean`, `email`, `telefone`, `phone`, `imagem`, `image`, `arquivo`, `file`, `upload`, `link`, `status`, `dinheiro`, `money`, `currency`, `senha`, `password`, `texto_longo`, `long_text`, `enum`
+
+**Lógica:** `se`, `if`, `senao`, `else`, `igual`, `equal`, `equals`, `maior`, `greater`, `menor`, `less`, `e`, `and`, `ou`, `or`, `entao`, `then`, `validar`, `validate`, `calcular`, `compute`, `definir`, `set`, `retornar`, `return`, `mudar`, `change`, `para`, `to`, `para_cada`, `for_each`, `funcao`, `function`, `tentar`, `try`, `erro`, `error`
+
+**Eventos:** `quando`, `when`, `clicar`, `click`, `criar`, `create`, `atualizar`, `update`, `deletar`, `delete`, `enviar`, `send`
+
+**Auth:** `login`, `registro`, `register`, `usuario`, `user`, `permissao`, `permission`, `requer`, `requires`, `admin`, `publico`, `public`
+
+**Integrações:** `whatsapp`, `mensagem`, `message`, `notificar`, `notify`, `cron`, `cada`, `every`, `hora`, `hour`, `minuto`, `minute`, `chamar`, `call`, `api`, `webhook`, `pagamento`, `payment`
+
+**Relacionamentos:** `pertence_a`, `belongs_to`, `tem_muitos`, `has_many`, `muitos_para_muitos`, `many_to_many`
+
+**Modificadores:** `obrigatorio`, `required`, `unico`, `unique`, `padrao`, `default`, `indice`, `index`, `soft_delete`
+
+**Importação:** `importar`, `import`, `de`, `from`
+
+---
+
+## 19. Gramática Formal (EBNF)
+
+```ebnf
+program         = import* sistema? block*
+block           = dados_block | telas_block | eventos_block
+                | logica_block | auth_block | banco_block
+                | integracoes_block | tema_block | acoes_block
+
+sistema_block   = "sistema" name NEWLINE
+
+import_stmt     = "importar" (STRING | name "de" STRING) NEWLINE
+
+dados_block     = "dados" NEWLINE model+
+model           = name ("soft_delete")? NEWLINE field*
+field           = name ":" type modifier* NEWLINE
+type            = "texto" | "numero" | "data" | "booleano" | "email"
+                | "telefone" | "imagem" | "arquivo" | "upload" | "link"
+                | "status" | "dinheiro" | "senha" | "texto_longo" | "enum"
+                | (* English equivalents *)
+modifier        = "obrigatorio" | "required"
+                | "unico" | "unique"
+                | "indice" | "index"
+                | ("padrao" | "default") STRING
+                | ("pertence_a" | "belongs_to") name
+
+telas_block     = "telas" NEWLINE screen+
+screen          = "tela" name NEWLINE screen_item*
+screen_item     = titulo_item | lista_item | botao_item
+                | formulario_item | mostrar_item
+titulo_item     = "titulo" STRING NEWLINE
+lista_item      = "lista" name NEWLINE mostrar_item*
+mostrar_item    = "mostrar" name NEWLINE
+botao_item      = "botao" [name] NEWLINE ("texto" STRING NEWLINE)?
+formulario_item = "formulario" name NEWLINE
+
+eventos_block   = "eventos" NEWLINE event+
+event           = "quando" trigger [STRING] NEWLINE action_stmt
+trigger         = "clicar" | "enviar" | "criar" | "atualizar" | "deletar"
+                | (* English equivalents *)
+action_stmt     = name name? NEWLINE
+
+logica_block    = "logica" NEWLINE rule*
+rule            = "se" name operator value NEWLINE action_line
+                | "validar" name modifier NEWLINE
+operator        = "igual" | "maior" | "menor" | (* EN *)
+value           = STRING | name | NUMBER
+action_line     = action_kw name? NEWLINE
+action_kw       = "mudar" | "definir" | "calcular" | "retornar" | "notificar"
+                | (* EN equivalents *)
+
+auth_block      = "autenticacao" NEWLINE auth_item*
+auth_item       = "usuario" name NEWLINE
+                | "login" name NEWLINE
+                | "permissao" name+ NEWLINE
+                | "publico" NEWLINE
+
+banco_block     = "banco" NEWLINE kv_pair*
+kv_pair         = name ":" (STRING | name) NEWLINE
+
+tema_block      = "tema" NEWLINE tema_item*
+tema_item       = "cor" name STRING NEWLINE
+                | "escuro" NEWLINE
+                | "icone" STRING NEWLINE
+
+integracoes_block = "integracoes" NEWLINE integ_item*
+integ_item      = email_config | cron_item | webhook_item
+email_config    = "email" NEWLINE kv_pair*
+cron_item       = "cron" NEWLINE "cada" NUMBER time_unit NEWLINE cron_action
+time_unit       = "segundo" | "minuto" | "hora" | "dia" | (* EN + plural *)
+cron_action     = "chamar" STRING NEWLINE | name name? NEWLINE
+
+name            = IDENTIFIER
+STRING          = '"' char* '"'
+NUMBER          = DIGIT+ ('.' DIGIT+)?
+NEWLINE         = '\n'
+INDENT          = SPACE+
+SPACE           = ' ' | '\t'
+DIGIT           = '0'..'9'
+LETTER          = 'a'..'z' | 'A'..'Z' | unicode_letter
+IDENTIFIER      = (LETTER | '_') (LETTER | DIGIT | '_')*
+```
