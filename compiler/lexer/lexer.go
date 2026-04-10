@@ -150,6 +150,28 @@ const (
 	TokenPadrao
 	TokenIndice
 	TokenSoftDelete
+
+	// New logic/scripting tokens
+	TokenPausar
+	TokenContinuar
+	TokenParar
+	TokenEnquanto
+	TokenRepetir
+	TokenVezes
+	TokenNulo
+	TokenVerdadeiro
+	TokenFalso
+	TokenNao
+	TokenEm
+	TokenAte
+	TokenDiferente
+	TokenMaiorIgual
+	TokenMenorIgual
+	TokenMaiorQue
+	TokenMenorQue
+	TokenEqualEqual
+	TokenLBracket
+	TokenRBracket
 )
 
 // Token represents a single lexical token.
@@ -211,6 +233,12 @@ var keywords = map[string]TokenType{
 	// Modificadores
 	"obrigatorio": TokenObrigatorio, "unico": TokenUnico, "padrao": TokenPadrao,
 	"indice": TokenIndice, "soft_delete": TokenSoftDelete,
+	// Scripting PT
+	"pausar": TokenPausar, "continuar": TokenContinuar, "parar": TokenParar,
+	"enquanto": TokenEnquanto, "repetir": TokenRepetir, "vezes": TokenVezes,
+	"nulo": TokenNulo, "nada": TokenNulo,
+	"verdadeiro": TokenVerdadeiro, "falso": TokenFalso,
+	"nao": TokenNao, "em": TokenEm, "ate": TokenAte,
 
 	// ===================== ENGLISH =====================
 	"system": TokenSistema, "models": TokenDados, "screens": TokenTelas,
@@ -254,6 +282,13 @@ var keywords = map[string]TokenType{
 	// Modifiers
 	"required": TokenObrigatorio, "unique": TokenUnico, "default": TokenPadrao,
 	"index": TokenIndice,
+	// Scripting EN
+	"pause": TokenPausar, "continue": TokenContinuar, "break": TokenParar, "stop": TokenParar,
+	"while": TokenEnquanto, "repeat": TokenRepetir, "times": TokenVezes,
+	"null": TokenNulo, "nothing": TokenNulo,
+	"true": TokenVerdadeiro, "false": TokenFalso,
+	"not": TokenNao, "in": TokenEm, "until": TokenAte,
+	"for": TokenPara, "each": TokenCada, "print": TokenMostrar,
 
 	// Colors
 	"azul": TokenIdentifier, "verde": TokenIdentifier, "vermelho": TokenIdentifier,
@@ -379,8 +414,50 @@ func (l *Lexer) scanToken() error {
 
 	// Operators
 	if ch == '=' {
-		l.tokens = append(l.tokens, Token{Type: TokenEquals, Value: "=", Line: l.line, Column: l.col})
+		col := l.col
 		l.advance()
+		if l.pos < len(l.source) && l.peek() == '=' {
+			l.advance()
+			l.tokens = append(l.tokens, Token{Type: TokenEqualEqual, Value: "==", Line: l.line, Column: col})
+		} else {
+			l.tokens = append(l.tokens, Token{Type: TokenEquals, Value: "=", Line: l.line, Column: col})
+		}
+		return nil
+	}
+	if ch == '!' {
+		col := l.col
+		l.advance()
+		if l.pos < len(l.source) && l.peek() == '=' {
+			l.advance()
+			l.tokens = append(l.tokens, Token{Type: TokenDiferente, Value: "!=", Line: l.line, Column: col})
+		} else {
+			l.tokens = append(l.tokens, Token{Type: TokenNao, Value: "!", Line: l.line, Column: col})
+		}
+		return nil
+	}
+	if ch == '<' {
+		col := l.col
+		l.advance()
+		if l.pos < len(l.source) && l.peek() == '=' {
+			l.advance()
+			l.tokens = append(l.tokens, Token{Type: TokenMenorIgual, Value: "<=", Line: l.line, Column: col})
+		} else if l.pos < len(l.source) && l.peek() == '>' {
+			l.advance()
+			l.tokens = append(l.tokens, Token{Type: TokenDiferente, Value: "<>", Line: l.line, Column: col})
+		} else {
+			l.tokens = append(l.tokens, Token{Type: TokenMenorQue, Value: "<", Line: l.line, Column: col})
+		}
+		return nil
+	}
+	if ch == '>' {
+		col := l.col
+		l.advance()
+		if l.pos < len(l.source) && l.peek() == '=' {
+			l.advance()
+			l.tokens = append(l.tokens, Token{Type: TokenMaiorIgual, Value: ">=", Line: l.line, Column: col})
+		} else {
+			l.tokens = append(l.tokens, Token{Type: TokenMaiorQue, Value: ">", Line: l.line, Column: col})
+		}
 		return nil
 	}
 	if ch == '+' {
@@ -398,6 +475,11 @@ func (l *Lexer) scanToken() error {
 		l.advance()
 		return nil
 	}
+	if ch == '/' {
+		l.tokens = append(l.tokens, Token{Type: TokenSlash, Value: "/", Line: l.line, Column: l.col})
+		l.advance()
+		return nil
+	}
 	if ch == '(' {
 		l.tokens = append(l.tokens, Token{Type: TokenLParen, Value: "(", Line: l.line, Column: l.col})
 		l.advance()
@@ -405,6 +487,16 @@ func (l *Lexer) scanToken() error {
 	}
 	if ch == ')' {
 		l.tokens = append(l.tokens, Token{Type: TokenRParen, Value: ")", Line: l.line, Column: l.col})
+		l.advance()
+		return nil
+	}
+	if ch == '[' {
+		l.tokens = append(l.tokens, Token{Type: TokenLBracket, Value: "[", Line: l.line, Column: l.col})
+		l.advance()
+		return nil
+	}
+	if ch == ']' {
+		l.tokens = append(l.tokens, Token{Type: TokenRBracket, Value: "]", Line: l.line, Column: l.col})
 		l.advance()
 		return nil
 	}

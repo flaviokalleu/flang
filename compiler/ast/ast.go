@@ -22,6 +22,8 @@ type Program struct {
 	Notifiers []*Notifier
 	Crons     []*CronJob
 	Env       map[string]string
+	Functions []*FuncDecl
+	Scripts   []*Statement
 }
 
 func (p *Program) NodeType() string { return "Program" }
@@ -44,6 +46,8 @@ func (p *Program) Merge(other *Program) {
 	p.Rules = append(p.Rules, other.Rules...)
 	p.Notifiers = append(p.Notifiers, other.Notifiers...)
 	p.Crons = append(p.Crons, other.Crons...)
+	p.Functions = append(p.Functions, other.Functions...)
+	p.Scripts = append(p.Scripts, other.Scripts...)
 }
 
 // ==================== System ====================
@@ -295,3 +299,113 @@ type CronJob struct {
 }
 
 func (c *CronJob) NodeType() string { return "CronJob" }
+
+// ==================== Scripting/Logic AST ====================
+
+// Expression represents any value expression.
+type Expression struct {
+	Type     string       // "literal", "variable", "binary", "unary", "call", "field_access", "list"
+	Value    interface{}  // for literals (string, float64, bool, nil)
+	Name     string       // for variables and function calls
+	Left     *Expression
+	Right    *Expression
+	Operator string       // +, -, *, /, ==, !=, >, <, >=, <=, e/and, ou/or
+	Args     []*Expression // for function calls
+	Object   string       // for field access (object.field)
+	Field    string
+	Elements []*Expression // for list literals
+}
+
+func (e *Expression) NodeType() string { return "Expression" }
+
+// VarDecl represents: definir x = 10
+type VarDecl struct {
+	Name  string
+	Value Expression
+}
+
+func (v *VarDecl) NodeType() string { return "VarDecl" }
+
+// Assignment represents: x = 10 or object.field = value
+type Assignment struct {
+	Target string
+	Field  string // for object.field = value
+	Value  Expression
+}
+
+func (a *Assignment) NodeType() string { return "Assignment" }
+
+// FuncDecl represents: funcao name(params) ... body
+type FuncDecl struct {
+	Name   string
+	Params []string
+	Body   []*Statement
+}
+
+func (f *FuncDecl) NodeType() string { return "FuncDecl" }
+
+// Statement represents any executable statement.
+type Statement struct {
+	Type    string // "var", "assign", "if", "for_each", "while", "repeat", "return", "break", "continue", "pause", "call", "print", "try"
+	VarDecl *VarDecl
+	Assign  *Assignment
+	If      *IfStmt
+	ForEach *ForEachStmt
+	While   *WhileStmt
+	Repeat  *RepeatStmt
+	Return  *Expression
+	Call    *FuncCall
+	Print   *Expression
+	Try     *TryStmt
+}
+
+func (s *Statement) NodeType() string { return "Statement" }
+
+// IfStmt represents: se/if ... senao se/else if ... senao/else
+type IfStmt struct {
+	Condition Expression
+	Body      []*Statement
+	ElseIfs   []*ElseIfClause
+	Else      []*Statement
+}
+
+// ElseIfClause represents a single else-if branch.
+type ElseIfClause struct {
+	Condition Expression
+	Body      []*Statement
+}
+
+// ForEachStmt represents: para cada x em collection
+type ForEachStmt struct {
+	VarName    string
+	Collection Expression
+	Body       []*Statement
+}
+
+// WhileStmt represents: enquanto condition
+type WhileStmt struct {
+	Condition Expression
+	Body      []*Statement
+}
+
+// RepeatStmt represents: repetir N vezes
+type RepeatStmt struct {
+	Count Expression
+	Body  []*Statement
+}
+
+// FuncCall represents: name(args)
+type FuncCall struct {
+	Name   string
+	Object string // for method calls: object.method(args)
+	Args   []*Expression
+}
+
+func (f *FuncCall) NodeType() string { return "FuncCall" }
+
+// TryStmt represents: tentar ... erro ...
+type TryStmt struct {
+	Body   []*Statement
+	Catch  []*Statement
+	ErrVar string
+}

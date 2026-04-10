@@ -13,23 +13,27 @@ import (
 	"time"
 
 	"github.com/flavio/flang/compiler/ast"
+	"github.com/flavio/flang/compiler/lexer"
+	"github.com/flavio/flang/compiler/parser"
 	authpkg "github.com/flavio/flang/runtime/auth"
 	"github.com/flavio/flang/runtime/banco"
 	emailpkg "github.com/flavio/flang/runtime/email"
 	"github.com/flavio/flang/runtime/httpclient"
+	interp "github.com/flavio/flang/runtime/interpreter"
 	wa "github.com/flavio/flang/runtime/whatsapp"
 )
 
 // Servidor is the embedded Flang web server.
 type Servidor struct {
-	Program    *ast.Program
-	DB         *banco.Banco
-	Porta      string
-	WS         *WSHub
-	WA         *wa.Client
-	Auth       *authpkg.Auth
-	Email      *emailpkg.Client
-	HTTPClient *httpclient.Client
+	Program     *ast.Program
+	DB          *banco.Banco
+	Porta       string
+	WS          *WSHub
+	WA          *wa.Client
+	Auth        *authpkg.Auth
+	Email       *emailpkg.Client
+	HTTPClient  *httpclient.Client
+	Interpreter *interp.Interpreter
 }
 
 // Novo creates a new server.
@@ -61,6 +65,10 @@ func (s *Servidor) Iniciar() error {
 
 	// Proxy endpoint for frontend to call external APIs
 	mux.HandleFunc("/api/_proxy", s.handleProxy)
+
+	// Scripting endpoints
+	mux.HandleFunc("/api/_eval", s.handleEval)
+	mux.HandleFunc("/api/_log", s.handleLog)
 
 	// Apply middleware chain
 	var handler http.Handler = mux
@@ -98,6 +106,87 @@ func (s *Servidor) handlePagina(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(s.renderHTML()))
 }
 
+func (s *Servidor) handleEval(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+		return
+	}
+	if s.Interpreter == nil {
+		http.Error(w, `{"error":"interpreter not initialized"}`, http.StatusInternalServerError)
+		return
+	}
+
+	var req struct {
+		Code string `json:"code"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, `{"error":"invalid JSON body"}`, http.StatusBadRequest)
+		return
+	}
+
+	if req.Code == "" {
+		http.Error(w, `{"error":"empty code"}`, http.StatusBadRequest)
+		return
+	}
+
+	// Wrap code in a logica block for parsing
+	wrappedCode := "sistema eval\nlogica\n"
+	for _, line := range strings.Split(req.Code, "\n") {
+		wrappedCode += "  " + line + "\n"
+	}
+
+	lex := lexer.New(wrappedCode)
+	tokens, err := lex.Tokenize()
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"error":  fmt.Sprintf("erro lexico: %s", err),
+			"output": []string{},
+		})
+		return
+	}
+
+	p := parser.New(tokens)
+	program, err := p.Parse()
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"error":  fmt.Sprintf("erro de parsing: %s", err),
+			"output": []string{},
+		})
+		return
+	}
+
+	output := s.Interpreter.EvalStatements(program.Scripts, program.Functions)
+	if output == nil {
+		output = []string{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"output": output,
+	})
+}
+
+func (s *Servidor) handleLog(w http.ResponseWriter, r *http.Request) {
+	if s.Interpreter == nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"logs":[]}`))
+		return
+	}
+
+	clear := r.URL.Query().Get("clear") == "true"
+	logs := s.Interpreter.GetLogs(clear)
+	if logs == nil {
+		logs = []string{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"logs": logs,
+	})
+}
+
 func (s *Servidor) handleAPI(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/")
 	path = strings.TrimSuffix(path, "/")
@@ -111,6 +200,11 @@ func (s *Servidor) handleAPI(w http.ResponseWriter, r *http.Request) {
 
 	// Handle /api/_proxy (already routed via mux, but skip model check)
 	if parts[0] == "_proxy" {
+		return
+	}
+
+	// Handle scripting endpoints routed via mux
+	if parts[0] == "_eval" || parts[0] == "_log" {
 		return
 	}
 

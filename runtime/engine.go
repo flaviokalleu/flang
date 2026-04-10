@@ -13,6 +13,7 @@ import (
 	cronpkg "github.com/flavio/flang/runtime/cron"
 	emailpkg "github.com/flavio/flang/runtime/email"
 	"github.com/flavio/flang/runtime/httpclient"
+	interp "github.com/flavio/flang/runtime/interpreter"
 	"github.com/flavio/flang/runtime/servidor"
 	wa "github.com/flavio/flang/runtime/whatsapp"
 )
@@ -191,6 +192,16 @@ func Executar(arquivo string, porta string) error {
 	srv.Email = emailClient
 	srv.HTTPClient = httpClient
 
+	// Interpreter / Scripting Engine
+	interpreter := interp.New(db)
+	srv.Interpreter = interpreter
+
+	// Register functions and execute top-level scripts
+	if len(program.Functions) > 0 || len(program.Scripts) > 0 {
+		interpreter.Run(program)
+		fmt.Printf("[flang] Logica: %d funcao(es), %d script(s)\n", len(program.Functions), len(program.Scripts))
+	}
+
 	// Cron Jobs
 	if len(program.Crons) > 0 {
 		scheduler := cronpkg.Novo(program.Crons)
@@ -226,6 +237,12 @@ func Verificar(arquivo string) error {
 	fmt.Printf("  telas:    %d\n", len(program.Screens))
 	fmt.Printf("  eventos:  %d\n", len(program.Events))
 	fmt.Printf("  regras:   %d\n", len(program.Rules))
+	if len(program.Functions) > 0 {
+		fmt.Printf("  funcoes:  %d\n", len(program.Functions))
+	}
+	if len(program.Scripts) > 0 {
+		fmt.Printf("  scripts:  %d\n", len(program.Scripts))
+	}
 	if program.WhatsApp != nil && program.WhatsApp.Enabled {
 		fmt.Printf("  whatsapp: ativado (%d notificações)\n", len(program.Notifiers))
 	}
