@@ -19,7 +19,7 @@ import (
 type Banco struct {
 	DB     *sql.DB
 	Models map[string]*ast.Model
-	Driver string // "sqlite", "mysql", "postgres"
+	Driver string      // "sqlite", "mysql", "postgres"
 	Rules  []*ast.Rule // user-defined validation rules
 }
 
@@ -223,8 +223,23 @@ func (b *Banco) criarTabela(model *ast.Model) error {
 		tsType = "TIMESTAMP"
 	}
 
-	cols = append(cols, fmt.Sprintf("%s %s DEFAULT %s", q("criado_em"), tsType, tsDefault))
-	cols = append(cols, fmt.Sprintf("%s %s DEFAULT %s", q("atualizado_em"), tsType, tsDefault))
+	hasCriadoEm := false
+	hasAtualizadoEm := false
+	for _, f := range model.Fields {
+		switch strings.ToLower(f.Name) {
+		case "criado_em":
+			hasCriadoEm = true
+		case "atualizado_em":
+			hasAtualizadoEm = true
+		}
+	}
+
+	if !hasCriadoEm {
+		cols = append(cols, fmt.Sprintf("%s %s DEFAULT %s", q("criado_em"), tsType, tsDefault))
+	}
+	if !hasAtualizadoEm {
+		cols = append(cols, fmt.Sprintf("%s %s DEFAULT %s", q("atualizado_em"), tsType, tsDefault))
+	}
 
 	// Soft delete column
 	if model.SoftDelete {

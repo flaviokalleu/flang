@@ -142,6 +142,32 @@ func TestFieldTypes(t *testing.T) {
 	}
 }
 
+func TestRealtimeKeywords(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected TokenType
+	}{
+		{"chat", TokenChat},
+		{"sessao", TokenSessao},
+		{"qrcode", TokenQRCode},
+		{"presenca", TokenPresenca},
+		{"fila_jobs", TokenFilaJobs},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			l := New(tt.input)
+			tokens, err := l.Tokenize()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tokens[0].Type != tt.expected {
+				t.Fatalf("expected %v, got %v", tt.expected, tokens[0].Type)
+			}
+		})
+	}
+}
+
 func TestStringsAndNumbers(t *testing.T) {
 	l := New(`"hello world" 42 3.14`)
 	tokens, err := l.Tokenize()

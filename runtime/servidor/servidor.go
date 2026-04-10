@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"net/url"
 	"os"
@@ -22,6 +23,7 @@ import (
 	emailpkg "github.com/flavio/flang/runtime/email"
 	"github.com/flavio/flang/runtime/httpclient"
 	interp "github.com/flavio/flang/runtime/interpreter"
+	"github.com/flavio/flang/runtime/jobs"
 	wa "github.com/flavio/flang/runtime/whatsapp"
 )
 
@@ -36,8 +38,11 @@ type Servidor struct {
 	Email       *emailpkg.Client
 	HTTPClient  *httpclient.Client
 	Interpreter *interp.Interpreter
+	Jobs        *jobs.Queue
 	rateLimiter map[string][]time.Time
 	rateMu      sync.Mutex
+	presence    map[string]map[string]any
+	presenceMu  sync.RWMutex
 	htmlCache   string
 	htmlCacheMu sync.RWMutex
 }
@@ -46,7 +51,8 @@ type Servidor struct {
 func Novo(program *ast.Program, db *banco.Banco, porta string) *Servidor {
 	return &Servidor{
 		Program: program, DB: db, Porta: porta, WS: NewWSHub(),
-		rateLimiter: make(map[string][]time.Time),
+		Jobs: jobs.Nova(4, 256), rateLimiter: make(map[string][]time.Time),
+		presence: make(map[string]map[string]any),
 	}
 }
 
@@ -58,6 +64,7 @@ func (s *Servidor) Iniciar() error {
 	mux.HandleFunc("/api/", s.handleAPI)
 	mux.HandleFunc("/upload", s.handleUpload)
 	mux.Handle("/uploads/", http.StripPrefix("/uploads/", http.FileServer(http.Dir("uploads"))))
+	mux.HandleFunc("/media/stream", s.handleMediaStream)
 	mux.HandleFunc("/ws", s.WS.HandleWS)
 	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -74,6 +81,12 @@ func (s *Servidor) Iniciar() error {
 
 	// Proxy endpoint for frontend to call external APIs
 	mux.HandleFunc("/api/_proxy", s.handleProxy)
+	mux.HandleFunc("/api/_presence", s.handlePresence)
+	mux.HandleFunc("/api/_jobs/status", s.handleJobsStatus)
+	mux.HandleFunc("/api/whatsapp/sessions", s.handleWASessions)
+	mux.HandleFunc("/api/whatsapp/connect", s.handleWAConnect)
+	mux.HandleFunc("/api/whatsapp/qr", s.handleWAQR)
+	mux.HandleFunc("/api/whatsapp/send", s.handleWASend)
 
 	// Scripting endpoints
 	mux.HandleFunc("/api/_eval", s.handleEval)
@@ -127,6 +140,19 @@ func (s *Servidor) Iniciar() error {
 		handler = s.Auth.Middleware(handler)
 	}
 	handler = s.middleware(handler)
+
+	if s.WA != nil {
+		s.WA.SetEventHandler(func(evt wa.Event) {
+			s.WS.Broadcast(WSMessage{Type: evt.Type, Session: evt.Session, Data: evt})
+		})
+	}
+	s.WS.OnConnect = func(count int) {
+		s.WS.Broadcast(WSMessage{Type: "presenca_socket", Data: map[string]any{"connections": count}})
+	}
+	s.WS.OnDisconnect = func(count int) {
+		s.WS.Broadcast(WSMessage{Type: "presenca_socket", Data: map[string]any{"connections": count}})
+	}
+	defer s.Jobs.Close()
 
 	// Periodic rate limiter cleanup
 	go func() {
@@ -548,8 +574,8 @@ func (s *Servidor) handleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Limit to 32MB
-	r.ParseMultipartForm(32 << 20)
+	// Limit to 128MB for audio/video attachments
+	r.ParseMultipartForm(128 << 20)
 	file, header, err := r.FormFile("file")
 	if err != nil {
 		s.jsonError(w, "erro ao ler arquivo: "+err.Error(), http.StatusBadRequest)
@@ -571,6 +597,8 @@ func (s *Servidor) handleUpload(w http.ResponseWriter, r *http.Request) {
 		".jpg": true, ".jpeg": true, ".png": true, ".gif": true, ".webp": true,
 		".svg": true, ".pdf": true, ".doc": true, ".docx": true, ".xls": true,
 		".xlsx": true, ".csv": true, ".txt": true, ".mp4": true, ".mp3": true,
+		".wav": true, ".ogg": true, ".webm": true, ".m4a": true, ".mov": true,
+		".avi": true, ".aac": true,
 	}
 	if !allowedExts[strings.ToLower(ext)] {
 		s.jsonError(w, "Tipo de arquivo não permitido", http.StatusBadRequest)
@@ -597,6 +625,38 @@ func (s *Servidor) handleUpload(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"path": "/uploads/" + name, "name": header.Filename})
 }
 
+func (s *Servidor) handleMediaStream(w http.ResponseWriter, r *http.Request) {
+	pathValue := r.URL.Query().Get("path")
+	if pathValue == "" {
+		s.jsonError(w, "path é obrigatório", http.StatusBadRequest)
+		return
+	}
+	fullPath, err := resolveUploadPath(pathValue)
+	if err != nil {
+		s.jsonError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	file, err := os.Open(fullPath)
+	if err != nil {
+		s.jsonError(w, "arquivo não encontrado", http.StatusNotFound)
+		return
+	}
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil {
+		s.jsonError(w, "erro ao ler arquivo", http.StatusInternalServerError)
+		return
+	}
+	ctype := mime.TypeByExtension(strings.ToLower(filepath.Ext(fullPath)))
+	if ctype == "" {
+		ctype = "application/octet-stream"
+	}
+	w.Header().Set("Content-Type", ctype)
+	w.Header().Set("Accept-Ranges", "bytes")
+	w.Header().Set("Content-Disposition", "inline; filename=\""+filepath.Base(fullPath)+"\"")
+	http.ServeContent(w, r, filepath.Base(fullPath), info.ModTime(), file)
+}
+
 func (s *Servidor) jsonOK(w http.ResponseWriter, data any) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(data)
@@ -606,6 +666,22 @@ func (s *Servidor) jsonError(w http.ResponseWriter, msg string, code int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 	json.NewEncoder(w).Encode(map[string]string{"erro": msg})
+}
+
+func resolveUploadPath(pathValue string) (string, error) {
+	clean := filepath.Clean(strings.TrimPrefix(pathValue, "/"))
+	if !strings.HasPrefix(clean, "uploads") {
+		return "", fmt.Errorf("path fora do diretório de uploads")
+	}
+	fullPath, err := filepath.Abs(clean)
+	if err != nil {
+		return "", fmt.Errorf("path inválido")
+	}
+	baseUploads, _ := filepath.Abs("uploads")
+	if !strings.HasPrefix(fullPath, baseUploads) {
+		return "", fmt.Errorf("path bloqueado por segurança")
+	}
+	return fullPath, nil
 }
 
 // triggerNotifiers checks and fires WhatsApp/email/other notifications.
@@ -641,12 +717,12 @@ func (s *Servidor) triggerNotifiers(triggerType string, modelo string, data map[
 		msg := resolveTemplate(notif.Message, data)
 
 		// Send via WhatsApp
-		if notif.Channel == "whatsapp" && s.WA != nil && s.WA.IsConnected() {
-			go func(p, m string) {
-				if err := s.WA.EnviarMensagem(p, m); err != nil {
+		if notif.Channel == "whatsapp" && s.WA != nil {
+			s.Jobs.Submit("whatsapp-notifier", func() {
+				if err := s.WA.EnviarMensagem(dest, msg); err != nil {
 					fmt.Printf("[whatsapp] Erro ao enviar: %s\n", err)
 				}
-			}(dest, msg)
+			})
 		}
 
 		// Send via Email
@@ -655,13 +731,152 @@ func (s *Servidor) triggerNotifiers(triggerType string, modelo string, data map[
 			if subject == "" {
 				subject = "Notificação"
 			}
-			go func(to, subj, body string) {
-				if err := s.Email.EnviarEmail(to, subj, body); err != nil {
+			s.Jobs.Submit("email-notifier", func() {
+				if err := s.Email.EnviarEmail(dest, subject, msg); err != nil {
 					fmt.Printf("[email] Erro ao enviar: %s\n", err)
 				}
-			}(dest, subject, msg)
+			})
 		}
 	}
+}
+
+func (s *Servidor) handlePresence(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		s.presenceMu.RLock()
+		items := make([]map[string]any, 0, len(s.presence))
+		for _, item := range s.presence {
+			items = append(items, item)
+		}
+		s.presenceMu.RUnlock()
+		s.jsonOK(w, items)
+		return
+	}
+	if r.Method != http.MethodPost && r.Method != http.MethodDelete {
+		s.jsonError(w, "método não permitido", http.StatusMethodNotAllowed)
+		return
+	}
+	var req map[string]any
+	if r.Method == http.MethodPost {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			s.jsonError(w, "erro ao ler requisição", http.StatusBadRequest)
+			return
+		}
+		if err := json.Unmarshal(body, &req); err != nil {
+			s.jsonError(w, "JSON inválido", http.StatusBadRequest)
+			return
+		}
+		userKey := fmt.Sprintf("%v", req["user"])
+		if userKey == "" {
+			userKey = r.RemoteAddr
+		}
+		req["updated_at"] = time.Now().Format(time.RFC3339)
+		s.presenceMu.Lock()
+		s.presence[userKey] = req
+		s.presenceMu.Unlock()
+		msgType := "presenca"
+		if typing, ok := req["typing"].(bool); ok && typing {
+			msgType = "digitando"
+		}
+		s.WS.Broadcast(WSMessage{Type: msgType, Session: fmt.Sprintf("%v", req["session"]), Data: req})
+		s.jsonOK(w, map[string]any{"ok": true})
+		return
+	}
+	userKey := r.URL.Query().Get("user")
+	if userKey == "" {
+		userKey = r.RemoteAddr
+	}
+	s.presenceMu.Lock()
+	delete(s.presence, userKey)
+	s.presenceMu.Unlock()
+	s.WS.Broadcast(WSMessage{Type: "presenca", Data: map[string]any{"user": userKey, "status": "offline"}})
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Servidor) handleJobsStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		s.jsonError(w, "método não permitido", http.StatusMethodNotAllowed)
+		return
+	}
+	s.jsonOK(w, s.Jobs.Stats())
+}
+
+func (s *Servidor) handleWASessions(w http.ResponseWriter, r *http.Request) {
+	if s.WA == nil {
+		s.jsonError(w, "whatsapp não configurado", http.StatusNotFound)
+		return
+	}
+	switch r.Method {
+	case http.MethodGet:
+		s.jsonOK(w, s.WA.ListarSessoes())
+	case http.MethodPost:
+		var req struct {
+			Session string `json:"session"`
+		}
+		body, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(body, &req)
+		if req.Session == "" {
+			req.Session = "default"
+		}
+		s.Jobs.Submit("wa-connect-"+req.Session, func() {
+			if err := s.WA.ConectarSessao(req.Session); err != nil {
+				fmt.Printf("[whatsapp] erro ao conectar sessão %s: %v\n", req.Session, err)
+			}
+		})
+		w.WriteHeader(http.StatusAccepted)
+		s.jsonOK(w, map[string]any{"ok": true, "session": req.Session})
+	default:
+		s.jsonError(w, "método não permitido", http.StatusMethodNotAllowed)
+	}
+}
+
+func (s *Servidor) handleWAConnect(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		s.jsonError(w, "método não permitido", http.StatusMethodNotAllowed)
+		return
+	}
+	s.handleWASessions(w, r)
+}
+
+func (s *Servidor) handleWAQR(w http.ResponseWriter, r *http.Request) {
+	if s.WA == nil {
+		s.jsonError(w, "whatsapp não configurado", http.StatusNotFound)
+		return
+	}
+	sessionID := r.URL.Query().Get("session")
+	if sessionID == "" {
+		sessionID = "default"
+	}
+	s.jsonOK(w, s.WA.SessionInfo(sessionID))
+}
+
+func (s *Servidor) handleWASend(w http.ResponseWriter, r *http.Request) {
+	if s.WA == nil {
+		s.jsonError(w, "whatsapp não configurado", http.StatusNotFound)
+		return
+	}
+	if r.Method != http.MethodPost {
+		s.jsonError(w, "método não permitido", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		Session string `json:"session"`
+		Phone   string `json:"phone"`
+		Message string `json:"message"`
+	}
+	body, _ := io.ReadAll(r.Body)
+	if err := json.Unmarshal(body, &req); err != nil {
+		s.jsonError(w, "JSON inválido", http.StatusBadRequest)
+		return
+	}
+	if req.Session == "" {
+		req.Session = "default"
+	}
+	if err := s.WA.EnviarMensagemSessao(req.Session, req.Phone, req.Message); err != nil {
+		s.jsonError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	s.jsonOK(w, map[string]any{"ok": true})
 }
 
 // handleProxy allows the frontend to call external APIs through the server.

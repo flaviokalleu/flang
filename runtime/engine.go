@@ -182,11 +182,12 @@ func Executar(arquivo string, porta string) error {
 	var waClient *wa.Client
 	if program.WhatsApp != nil && program.WhatsApp.Enabled {
 		waClient = wa.Novo(program.WhatsApp.DBPath)
-		if err := waClient.Conectar(); err != nil {
-			fmt.Printf("[flang] AVISO WhatsApp: %s (continuando sem WhatsApp)\n", err)
-			waClient = nil
-		}
 		if waClient != nil {
+			go func() {
+				if err := waClient.Conectar(); err != nil {
+					fmt.Printf("[flang] AVISO WhatsApp: %s (continuando sem WhatsApp)\n", err)
+				}
+			}()
 			defer waClient.Desconectar()
 		}
 	}

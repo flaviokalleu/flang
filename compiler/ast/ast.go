@@ -7,19 +7,19 @@ type Node interface {
 
 // Program is the root AST node.
 type Program struct {
-	System    *System
-	Theme     *Theme
-	Database  *DatabaseConfig
-	Auth      *AuthConfig
-	WhatsApp  *WhatsAppConfig
-	Email     *EmailConfig
-	Imports   []*Import
-	Models    []*Model
-	Screens   []*Screen
-	Events    []*Event
-	Actions   []*Action
-	Rules     []*Rule
-	Notifiers []*Notifier
+	System       *System
+	Theme        *Theme
+	Database     *DatabaseConfig
+	Auth         *AuthConfig
+	WhatsApp     *WhatsAppConfig
+	Email        *EmailConfig
+	Imports      []*Import
+	Models       []*Model
+	Screens      []*Screen
+	Events       []*Event
+	Actions      []*Action
+	Rules        []*Rule
+	Notifiers    []*Notifier
 	Crons        []*CronJob
 	Env          map[string]string
 	Functions    []*FuncDecl
@@ -38,6 +38,9 @@ func (p *Program) Merge(other *Program) {
 	}
 	if other.Auth != nil && p.Auth == nil {
 		p.Auth = other.Auth
+	}
+	if other.WhatsApp != nil && p.WhatsApp == nil {
+		p.WhatsApp = other.WhatsApp
 	}
 	if other.Email != nil && p.Email == nil {
 		p.Email = other.Email
@@ -203,8 +206,12 @@ func (a *AuthConfig) NodeType() string { return "AuthConfig" }
 // ==================== WhatsApp ====================
 
 type WhatsAppConfig struct {
-	Enabled bool
-	DBPath  string
+	Enabled      bool
+	DBPath       string
+	Provider     string
+	MultiSession bool
+	Presence     bool
+	QRCodeFlow   bool
 }
 
 func (w *WhatsAppConfig) NodeType() string { return "WhatsAppConfig" }
@@ -241,21 +248,21 @@ func (m *Model) NodeType() string { return "Model" }
 type FieldType string
 
 const (
-	FieldTexto     FieldType = "texto"
-	FieldNumero    FieldType = "numero"
-	FieldData      FieldType = "data"
-	FieldBooleano  FieldType = "booleano"
-	FieldEmail     FieldType = "email"
-	FieldTelefone  FieldType = "telefone"
-	FieldImagem    FieldType = "imagem"
-	FieldArquivo   FieldType = "arquivo"
-	FieldUpload    FieldType = "upload"
-	FieldLink      FieldType = "link"
-	FieldStatus    FieldType = "status"
-	FieldDinheiro  FieldType = "dinheiro"
-	FieldSenha     FieldType = "senha"
+	FieldTexto      FieldType = "texto"
+	FieldNumero     FieldType = "numero"
+	FieldData       FieldType = "data"
+	FieldBooleano   FieldType = "booleano"
+	FieldEmail      FieldType = "email"
+	FieldTelefone   FieldType = "telefone"
+	FieldImagem     FieldType = "imagem"
+	FieldArquivo    FieldType = "arquivo"
+	FieldUpload     FieldType = "upload"
+	FieldLink       FieldType = "link"
+	FieldStatus     FieldType = "status"
+	FieldDinheiro   FieldType = "dinheiro"
+	FieldSenha      FieldType = "senha"
 	FieldTextoLongo FieldType = "texto_longo"
-	FieldEnum      FieldType = "enum"
+	FieldEnum       FieldType = "enum"
 )
 
 type Field struct {
@@ -289,7 +296,7 @@ func (ft FieldType) SQLType() string {
 type Screen struct {
 	Name       string
 	Title      string
-	Public     bool // accessible without login
+	Public     bool   // accessible without login
 	Requires   string // required role
 	Components []*Component
 }
@@ -305,6 +312,7 @@ const (
 	CompShow     ComponentType = "mostrar"
 	CompButton   ComponentType = "botao"
 	CompForm     ComponentType = "formulario"
+	CompChat     ComponentType = "chat"
 	CompInput    ComponentType = "entrada"
 	CompImage    ComponentType = "imagem"
 	CompText     ComponentType = "texto"
@@ -364,14 +372,14 @@ func (r *Rule) NodeType() string { return "Rule" }
 // ==================== Notifier ====================
 
 type Notifier struct {
-	Trigger  string
-	Model    string
-	Field    string
-	Value    string
-	SendTo   string
-	Message  string
-	Subject  string // email subject
-	Channel  string // whatsapp, email, webhook
+	Trigger string
+	Model   string
+	Field   string
+	Value   string
+	SendTo  string
+	Message string
+	Subject string // email subject
+	Channel string // whatsapp, email, webhook
 }
 
 func (n *Notifier) NodeType() string { return "Notifier" }
@@ -379,9 +387,9 @@ func (n *Notifier) NodeType() string { return "Notifier" }
 // ==================== CronJob ====================
 
 type CronJob struct {
-	Every    string // "1 hora", "30 minutos", etc
-	Action   string // what to do
-	Target   string // model or URL
+	Every  string // "1 hora", "30 minutos", etc
+	Action string // what to do
+	Target string // model or URL
 }
 
 func (c *CronJob) NodeType() string { return "CronJob" }
@@ -421,17 +429,17 @@ func (s *SidebarItem) NodeType() string { return "SidebarItem" }
 
 // Expression represents any value expression.
 type Expression struct {
-	Type     string       // "literal", "variable", "binary", "unary", "call", "field_access", "list"
-	Value    interface{}  // for literals (string, float64, bool, nil)
-	Name     string       // for variables and function calls
+	Type     string      // "literal", "variable", "binary", "unary", "call", "field_access", "list"
+	Value    interface{} // for literals (string, float64, bool, nil)
+	Name     string      // for variables and function calls
 	Left     *Expression
 	Right    *Expression
-	Operator string       // +, -, *, /, ==, !=, >, <, >=, <=, e/and, ou/or
+	Operator string        // +, -, *, /, ==, !=, >, <, >=, <=, e/and, ou/or
 	Args     []*Expression // for function calls
-	Object   string       // for field access (object.field)
+	Object   string        // for field access (object.field)
 	Field    string
 	Elements []*Expression // for list literals
-	Index    *Expression  // for array[index] access
+	Index    *Expression   // for array[index] access
 }
 
 func (e *Expression) NodeType() string { return "Expression" }

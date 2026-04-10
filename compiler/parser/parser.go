@@ -495,6 +495,12 @@ func (p *Parser) parseScreen() (*ast.Screen, error) {
 				return nil, err
 			}
 			screen.Components = append(screen.Components, comp)
+		case lexer.TokenChat:
+			comp, err := p.parseChatComponent()
+			if err != nil {
+				return nil, err
+			}
+			screen.Components = append(screen.Components, comp)
 		case lexer.TokenMostrar:
 			comp := p.parseShowComponent()
 			screen.Components = append(screen.Components, comp)
@@ -697,6 +703,70 @@ func (p *Parser) parseFormComponent() (*ast.Component, error) {
 	return comp, nil
 }
 
+func (p *Parser) parseChatComponent() (*ast.Component, error) {
+	p.advance() // consume 'chat'
+	p.skipIndent()
+
+	comp := &ast.Component{
+		Type:       ast.CompChat,
+		Properties: make(map[string]string),
+	}
+
+	if !p.isAtEnd() && p.current().Type == lexer.TokenIdentifier {
+		comp.Target = p.advance().Value
+	}
+
+	comp.Properties["messages_model"] = "mensagem"
+	comp.Properties["relation_field"] = strings.ToLower(comp.Target)
+	comp.Properties["text_field"] = "corpo"
+	comp.Properties["media_field"] = "media_url"
+	comp.Properties["author_field"] = "de_mim"
+	comp.Properties["timestamp_field"] = "criado_em"
+	comp.Properties["type_field"] = "tipo"
+
+	p.skipWhitespace()
+	for !p.isAtEnd() && !p.isBlockKeyword() {
+		tok := p.current()
+		if tok.Type == lexer.TokenNewline || tok.Type == lexer.TokenIndent {
+			p.advance()
+			continue
+		}
+		if tok.Type == lexer.TokenTela {
+			break
+		}
+
+		key := tok.Value
+		p.advance()
+		p.skipIndent()
+		if p.isAtEnd() || p.current().Type == lexer.TokenNewline {
+			continue
+		}
+		value := p.advance().Value
+		switch key {
+		case "mensagens", "messages":
+			comp.Properties["messages_model"] = value
+		case "relacao", "relation":
+			comp.Properties["relation_field"] = value
+		case "texto", "text":
+			comp.Properties["text_field"] = value
+		case "media", "media_field":
+			comp.Properties["media_field"] = value
+		case "autor", "author":
+			comp.Properties["author_field"] = value
+		case "data", "timestamp":
+			comp.Properties["timestamp_field"] = value
+		case "tipo", "message_type", "type":
+			comp.Properties["type_field"] = value
+		case "titulo", "title":
+			comp.Properties["title"] = value
+		default:
+			comp.Properties[key] = value
+		}
+	}
+
+	return comp, nil
+}
+
 // parseEventos parses the events block.
 func (p *Parser) parseEventos() error {
 	p.advance() // consume 'eventos'
@@ -774,8 +844,9 @@ func (p *Parser) parseTemaValue() string {
 
 // parseTema parses the theme block.
 // Supports: tema moderno escuro     (preset + modifier)
-//           tema azul               (color preset)
-//           tema                    (block with properties)
+//
+//	tema azul               (color preset)
+//	tema                    (block with properties)
 func (p *Parser) parseTema() error {
 	p.advance() // consume 'tema'
 	p.skipIndent()
@@ -927,8 +998,9 @@ func (p *Parser) parseTema() error {
 }
 
 // parseImportar parses: importar "arquivo.fg"
-//                       importar dados de "arquivo.fg"
-//                       importar tela de "arquivo.fg"
+//
+//	importar dados de "arquivo.fg"
+//	importar tela de "arquivo.fg"
 func (p *Parser) parseImportar() error {
 	p.advance() // consume 'importar'
 	p.skipIndent()
@@ -1282,16 +1354,17 @@ func (p *Parser) parseIntegracoes() error {
 
 // parseWhatsApp parses the whatsapp sub-block inside integracoes.
 // whatsapp
-//   quando criar pedido
-//     enviar mensagem para cliente.telefone
-//       texto "Seu pedido foi recebido!"
+//
+//	quando criar pedido
+//	  enviar mensagem para cliente.telefone
+//	    texto "Seu pedido foi recebido!"
 func (p *Parser) parseWhatsApp() error {
 	p.advance() // consume 'whatsapp'
 	p.skipWhitespace()
 
 	// Enable WhatsApp
 	if p.program.WhatsApp == nil {
-		p.program.WhatsApp = &ast.WhatsAppConfig{Enabled: true, DBPath: "whatsapp.db"}
+		p.program.WhatsApp = &ast.WhatsAppConfig{Enabled: true, DBPath: "whatsapp.db", Provider: "whatsmeow"}
 	}
 
 	for !p.isAtEnd() && !p.isBlockKeyword() {
@@ -1299,6 +1372,33 @@ func (p *Parser) parseWhatsApp() error {
 
 		if tok.Type == lexer.TokenNewline || tok.Type == lexer.TokenIndent {
 			p.advance()
+			continue
+		}
+
+		if tok.Type == lexer.TokenIdentifier || tok.Type == lexer.TokenSessao || tok.Type == lexer.TokenQRCode || tok.Type == lexer.TokenPresenca || tok.Type == lexer.TokenFilaJobs {
+			key := tok.Value
+			p.advance()
+			p.skipIndent()
+			if p.current().Type == lexer.TokenColon {
+				p.advance()
+				p.skipIndent()
+			}
+			if p.isAtEnd() || p.current().Type == lexer.TokenNewline {
+				continue
+			}
+			value := p.advance().Value
+			switch key {
+			case "provedor", "provider":
+				p.program.WhatsApp.Provider = value
+			case "db_path", "banco", "database":
+				p.program.WhatsApp.DBPath = value
+			case "multi_sessao", "multi_session":
+				p.program.WhatsApp.MultiSession = value == "verdadeiro" || value == "true" || value == "sim"
+			case "presenca", "presence":
+				p.program.WhatsApp.Presence = value == "verdadeiro" || value == "true" || value == "sim"
+			case "qr_code", "qrcode":
+				p.program.WhatsApp.QRCodeFlow = value == "verdadeiro" || value == "true" || value == "sim"
+			}
 			continue
 		}
 
@@ -1327,8 +1427,9 @@ func (p *Parser) parseWhatsApp() error {
 
 // parseNotifier parses a notification trigger.
 // quando criar pedido
-//   enviar mensagem para cliente.telefone
-//     texto "Mensagem aqui"
+//
+//	enviar mensagem para cliente.telefone
+//	  texto "Mensagem aqui"
 func (p *Parser) parseNotifier(channel string) (*ast.Notifier, error) {
 	p.advance() // consume 'quando'
 	p.skipIndent()
@@ -1423,9 +1524,10 @@ func (p *Parser) parseNotifier(channel string) (*ast.Notifier, error) {
 
 // parseAuth parses the authentication block.
 // autenticacao
-//   usuario: email
-//   senha: senha
-//   roles: admin, usuario
+//
+//	usuario: email
+//	senha: senha
+//	roles: admin, usuario
 func (p *Parser) parseAuth() error {
 	p.advance() // consume 'autenticacao'
 	p.skipWhitespace()

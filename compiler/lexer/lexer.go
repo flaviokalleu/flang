@@ -58,6 +58,7 @@ const (
 	TokenMostrar
 	TokenBotao
 	TokenFormulario
+	TokenChat
 	TokenEntrada
 	TokenTextoKW
 	TokenBusca
@@ -124,6 +125,11 @@ const (
 
 	// Integration keywords
 	TokenWhatsapp
+	TokenSessao
+	TokenQRCode
+	TokenPresenca
+	TokenStreaming
+	TokenFilaJobs
 	TokenMensagem
 	TokenNotificar
 	TokenEmailInteg
@@ -178,11 +184,11 @@ const (
 
 // Token represents a single lexical token.
 type Token struct {
-	Type    TokenType
-	Value   string
-	Line    int
-	Column  int
-	Indent  int
+	Type   TokenType
+	Value  string
+	Line   int
+	Column int
+	Indent int
 }
 
 func (t Token) String() string {
@@ -199,6 +205,7 @@ var keywords = map[string]TokenType{
 	// Tela
 	"tela": TokenTela, "titulo": TokenTitulo, "lista": TokenLista,
 	"mostrar": TokenMostrar, "botao": TokenBotao, "formulario": TokenFormulario,
+	"chat":    TokenChat,
 	"entrada": TokenEntrada, "busca": TokenBusca, "dashboard": TokenDashboard,
 	"grafico": TokenGrafico, "tabela": TokenTabela, "campo": TokenCampo,
 	"selecionar": TokenSelecionar, "area_texto": TokenAreaTexto,
@@ -223,7 +230,9 @@ var keywords = map[string]TokenType{
 	"permissao": TokenPermissao, "requer": TokenRequer, "admin": TokenAdmin,
 	"publico": TokenPublico,
 	// Integrações
-	"whatsapp": TokenWhatsapp, "mensagem": TokenMensagem, "notificar": TokenNotificar,
+	"whatsapp": TokenWhatsapp, "sessao": TokenSessao, "qr_code": TokenQRCode,
+	"presenca": TokenPresenca, "streaming": TokenStreaming, "fila_jobs": TokenFilaJobs,
+	"mensagem": TokenMensagem, "notificar": TokenNotificar,
 	"cron": TokenCron, "cada": TokenCada, "hora": TokenHora, "minuto": TokenMinuto,
 	"chamar": TokenChamar, "api": TokenApi, "webhook": TokenWebhook,
 	"pagamento": TokenPagamento,
@@ -262,6 +271,7 @@ var keywords = map[string]TokenType{
 	// Events
 	"when": TokenQuando, "click": TokenClicar, "create": TokenCriar,
 	"update": TokenAtualizar, "delete": TokenDeletar, "send": TokenEnviar,
+	"qrcode": TokenQRCode,
 	// Logic
 	"if": TokenSe, "else": TokenSenao, "equals": TokenIgual, "equal": TokenIgual,
 	"greater": TokenMaior, "less": TokenMenor, "and": TokenE, "or": TokenOu,
@@ -299,11 +309,11 @@ var keywords = map[string]TokenType{
 
 // Lexer tokenizes Flang source code.
 type Lexer struct {
-	source  []rune
-	pos     int
-	line    int
-	col     int
-	tokens  []Token
+	source []rune
+	pos    int
+	line   int
+	col    int
+	tokens []Token
 }
 
 // New creates a new Lexer for the given source code.

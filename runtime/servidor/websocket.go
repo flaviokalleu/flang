@@ -12,16 +12,19 @@ import (
 
 // WSMessage is a WebSocket broadcast message.
 type WSMessage struct {
-	Type   string `json:"type"`   // "criar", "atualizar", "deletar"
-	Model  string `json:"model"`  // model name
-	ID     int64  `json:"id"`     // record ID
-	Data   any    `json:"data"`   // record data (for create/update)
+	Type    string `json:"type"`
+	Model   string `json:"model"`
+	ID      int64  `json:"id"`
+	Session string `json:"session,omitempty"`
+	Data    any    `json:"data"`
 }
 
 // WSHub manages WebSocket connections.
 type WSHub struct {
-	mu      sync.RWMutex
-	clients map[*WSConn]bool
+	mu           sync.RWMutex
+	clients      map[*WSConn]bool
+	OnConnect    func(count int)
+	OnDisconnect func(count int)
 }
 
 // WSConn is a single WebSocket connection.
@@ -99,14 +102,22 @@ func (h *WSHub) HandleWS(w http.ResponseWriter, r *http.Request) {
 
 	h.mu.Lock()
 	h.clients[client] = true
+	count := len(h.clients)
 	h.mu.Unlock()
+	if h.OnConnect != nil {
+		go h.OnConnect(count)
+	}
 
 	// Writer goroutine
 	go func() {
 		defer func() {
 			h.mu.Lock()
 			delete(h.clients, client)
+			count := len(h.clients)
 			h.mu.Unlock()
+			if h.OnDisconnect != nil {
+				go h.OnDisconnect(count)
+			}
 			conn.Close()
 		}()
 

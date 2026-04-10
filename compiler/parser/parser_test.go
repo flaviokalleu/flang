@@ -166,6 +166,34 @@ func TestParseScreen(t *testing.T) {
 	}
 }
 
+func TestParseChatScreenComponent(t *testing.T) {
+	source := `telas
+  tela atendimento
+    titulo "Chat"
+    chat ticket
+      mensagens mensagem
+      relacao ticket
+      texto corpo
+`
+	prog := parse(t, source)
+	if len(prog.Screens) != 1 {
+		t.Fatalf("expected 1 screen, got %d", len(prog.Screens))
+	}
+	if len(prog.Screens[0].Components) != 1 {
+		t.Fatalf("expected 1 component, got %d", len(prog.Screens[0].Components))
+	}
+	comp := prog.Screens[0].Components[0]
+	if comp.Type != ast.CompChat {
+		t.Fatalf("expected chat component, got %q", comp.Type)
+	}
+	if comp.Target != "ticket" {
+		t.Fatalf("expected target ticket, got %q", comp.Target)
+	}
+	if comp.Properties["messages_model"] != "mensagem" {
+		t.Fatalf("expected messages_model mensagem, got %q", comp.Properties["messages_model"])
+	}
+}
+
 func TestParseEvents(t *testing.T) {
 	source := `eventos
   quando clicar "salvar"
@@ -212,6 +240,26 @@ func TestParseThemeWithProperties(t *testing.T) {
 	}
 	if prog.Theme.Font != "Roboto" {
 		t.Errorf("expected font 'Roboto', got %q", prog.Theme.Font)
+	}
+}
+
+func TestParseWhatsAppConfig(t *testing.T) {
+	source := `integracoes
+  whatsapp
+    provedor: whatsmeow
+    multi_sessao: verdadeiro
+    presenca: verdadeiro
+    qr_code: verdadeiro
+`
+	prog := parse(t, source)
+	if prog.WhatsApp == nil {
+		t.Fatal("expected whatsapp config")
+	}
+	if prog.WhatsApp.Provider != "whatsmeow" {
+		t.Fatalf("expected provider whatsmeow, got %q", prog.WhatsApp.Provider)
+	}
+	if !prog.WhatsApp.MultiSession || !prog.WhatsApp.Presence || !prog.WhatsApp.QRCodeFlow {
+		t.Fatal("expected whatsapp flags to be true")
 	}
 }
 

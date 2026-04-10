@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -16,122 +17,297 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// Client wraps the whatsmeow client for Flang.
-type Client struct {
-	mu        sync.Mutex
-	client    *whatsmeow.Client
-	connected bool
-	dbPath    string
+type Event struct {
+	Type      string `json:"type"`
+	Session   string `json:"session"`
+	Status    string `json:"status,omitempty"`
+	QRCode    string `json:"qr_code,omitempty"`
+	Phone     string `json:"phone,omitempty"`
+	Error     string `json:"error,omitempty"`
+	Connected bool   `json:"connected"`
 }
 
-// Novo creates a new WhatsApp client.
+type SessionInfo struct {
+	ID        string `json:"id"`
+	Status    string `json:"status"`
+	QRCode    string `json:"qr_code,omitempty"`
+	Phone     string `json:"phone,omitempty"`
+	Connected bool   `json:"connected"`
+}
+
+type sessionState struct {
+	id        string
+	dbPath    string
+	client    *whatsmeow.Client
+	connected bool
+	status    string
+	qrCode    string
+	phone     string
+}
+
+// Client wraps multiple whatsmeow sessions for Flang.
+type Client struct {
+	mu             sync.RWMutex
+	sessions       map[string]*sessionState
+	defaultSession string
+	baseDBPath     string
+	onEvent        func(Event)
+}
+
+// Novo creates a new WhatsApp client manager.
 func Novo(dbPath string) *Client {
 	if dbPath == "" {
 		dbPath = "whatsapp.db"
 	}
-	return &Client{dbPath: dbPath}
+	c := &Client{
+		sessions:       make(map[string]*sessionState),
+		defaultSession: "default",
+		baseDBPath:     dbPath,
+	}
+	c.sessions[c.defaultSession] = &sessionState{id: c.defaultSession, dbPath: dbPath, status: "desconectado"}
+	return c
 }
 
-// Conectar initializes the connection and shows QR code if needed.
-func (c *Client) Conectar() error {
+func (c *Client) SetEventHandler(fn func(Event)) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	c.onEvent = fn
+}
 
+func (c *Client) emit(evt Event) {
+	c.mu.RLock()
+	fn := c.onEvent
+	c.mu.RUnlock()
+	if fn != nil {
+		fn(evt)
+	}
+}
+
+func (c *Client) Conectar() error {
+	return c.ConectarSessao(c.defaultSession)
+}
+
+func (c *Client) ConectarSessao(sessionID string) error {
+	if sessionID == "" {
+		sessionID = c.defaultSession
+	}
+
+	s := c.ensureSession(sessionID)
 	ctx := context.Background()
 
 	dbLog := waLog.Stdout("WA-DB", "WARN", true)
-	container, err := sqlstore.New(ctx, "sqlite3",
-		"file:"+c.dbPath+"?_foreign_keys=on", dbLog)
+	container, err := sqlstore.New(ctx, "sqlite3", "file:"+s.dbPath+"?_foreign_keys=on", dbLog)
 	if err != nil {
+		c.setStatus(sessionID, "erro", "", "")
 		return fmt.Errorf("erro ao criar store WhatsApp: %w", err)
 	}
 
 	deviceStore, err := container.GetFirstDevice(ctx)
 	if err != nil {
+		c.setStatus(sessionID, "erro", "", "")
 		return fmt.Errorf("erro ao obter device: %w", err)
 	}
 
 	clientLog := waLog.Stdout("WA", "WARN", true)
-	c.client = whatsmeow.NewClient(deviceStore, clientLog)
+	client := whatsmeow.NewClient(deviceStore, clientLog)
+	c.mu.Lock()
+	s.client = client
+	c.mu.Unlock()
 
-	if c.client.Store.ID == nil {
-		// Need to login with QR code
-		fmt.Println("[whatsapp] Escaneie o QR Code para conectar:")
-		fmt.Println()
-
-		qrChan, _ := c.client.GetQRChannel(ctx)
-		if err := c.client.Connect(); err != nil {
+	if client.Store.ID == nil {
+		c.setStatus(sessionID, "aguardando_qr", "", "")
+		qrChan, _ := client.GetQRChannel(ctx)
+		if err := client.Connect(); err != nil {
+			c.setStatus(sessionID, "erro", "", "")
+			c.emit(Event{Type: "whatsapp_erro", Session: sessionID, Status: "erro", Error: err.Error()})
 			return fmt.Errorf("erro ao conectar WhatsApp: %w", err)
 		}
 
 		for evt := range qrChan {
-			if evt.Event == "code" {
-				// Print QR code as text for terminal
+			switch evt.Event {
+			case "code":
+				c.setStatus(sessionID, "aguardando_qr", evt.Code, "")
 				printQR(evt.Code)
-			} else if evt.Event == "success" {
-				fmt.Println("[whatsapp] ✓ Conectado com sucesso!")
-				break
-			} else if evt.Event == "timeout" {
+				c.emit(Event{Type: "qr", Session: sessionID, Status: "aguardando_qr", QRCode: evt.Code})
+			case "success":
+				phone := ""
+				if client.Store.ID != nil {
+					phone = client.Store.ID.User
+				}
+				c.setStatus(sessionID, "conectado", "", phone)
+				c.emit(Event{Type: "whatsapp_status", Session: sessionID, Status: "conectado", Connected: true, Phone: phone})
+				return nil
+			case "timeout":
+				c.setStatus(sessionID, "erro", "", "")
+				c.emit(Event{Type: "whatsapp_erro", Session: sessionID, Status: "erro", Error: "timeout ao esperar QR code"})
 				return fmt.Errorf("timeout ao esperar QR code")
 			}
 		}
-	} else {
-		// Already logged in
-		if err := c.client.Connect(); err != nil {
-			return fmt.Errorf("erro ao conectar WhatsApp: %w", err)
-		}
-		fmt.Println("[whatsapp] ✓ Reconectado")
+		return nil
 	}
 
-	c.connected = true
+	if err := client.Connect(); err != nil {
+		c.setStatus(sessionID, "erro", "", "")
+		c.emit(Event{Type: "whatsapp_erro", Session: sessionID, Status: "erro", Error: err.Error()})
+		return fmt.Errorf("erro ao conectar WhatsApp: %w", err)
+	}
+	phone := ""
+	if client.Store.ID != nil {
+		phone = client.Store.ID.User
+	}
+	c.setStatus(sessionID, "conectado", "", phone)
+	c.emit(Event{Type: "whatsapp_status", Session: sessionID, Status: "conectado", Connected: true, Phone: phone})
 	return nil
 }
 
-// EnviarMensagem sends a text message to a phone number.
 func (c *Client) EnviarMensagem(telefone string, mensagem string) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	return c.EnviarMensagemSessao(c.defaultSession, telefone, mensagem)
+}
 
-	if !c.connected || c.client == nil {
+func (c *Client) EnviarMensagemSessao(sessionID string, telefone string, mensagem string) error {
+	if sessionID == "" {
+		sessionID = c.defaultSession
+	}
+	c.mu.RLock()
+	s := c.sessions[sessionID]
+	c.mu.RUnlock()
+	if s == nil || !s.connected || s.client == nil {
 		return fmt.Errorf("WhatsApp não conectado")
 	}
 
-	// Clean phone number
 	phone := limparTelefone(telefone)
 	if phone == "" {
 		return fmt.Errorf("telefone inválido: %s", telefone)
 	}
 
 	jid := types.NewJID(phone, types.DefaultUserServer)
-
-	msg := &waE2E.Message{
-		Conversation: proto.String(mensagem),
-	}
-
-	ctx := context.Background()
-	_, err := c.client.SendMessage(ctx, jid, msg)
+	msg := &waE2E.Message{Conversation: proto.String(mensagem)}
+	_, err := s.client.SendMessage(context.Background(), jid, msg)
 	if err != nil {
 		return fmt.Errorf("erro ao enviar mensagem: %w", err)
 	}
-
-	fmt.Printf("[whatsapp] Mensagem enviada para %s\n", phone)
 	return nil
 }
 
-// Desconectar disconnects the client.
 func (c *Client) Desconectar() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-
-	if c.client != nil {
-		c.client.Disconnect()
-		c.connected = false
+	for _, s := range c.sessions {
+		if s.client != nil {
+			s.client.Disconnect()
+			s.connected = false
+			s.status = "desconectado"
+		}
 	}
 }
 
-// IsConnected returns whether the client is connected.
+func (c *Client) DesconectarSessao(sessionID string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if s := c.sessions[sessionID]; s != nil && s.client != nil {
+		s.client.Disconnect()
+		s.connected = false
+		s.status = "desconectado"
+		s.qrCode = ""
+	}
+	if sessionID != "" {
+		c.emit(Event{Type: "whatsapp_status", Session: sessionID, Status: "desconectado", Connected: false})
+	}
+}
+
 func (c *Client) IsConnected() bool {
-	return c.connected
+	return c.IsConnectedSessao(c.defaultSession)
+}
+
+func (c *Client) IsConnectedSessao(sessionID string) bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	s := c.sessions[sessionID]
+	return s != nil && s.connected
+}
+
+func (c *Client) QRCode(sessionID string) string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if s := c.sessions[sessionID]; s != nil {
+		return s.qrCode
+	}
+	return ""
+}
+
+func (c *Client) ListarSessoes() []SessionInfo {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	items := make([]SessionInfo, 0, len(c.sessions))
+	for _, s := range c.sessions {
+		items = append(items, SessionInfo{ID: s.id, Status: s.status, QRCode: s.qrCode, Phone: s.phone, Connected: s.connected})
+	}
+	return items
+}
+
+func (c *Client) SessionInfo(sessionID string) SessionInfo {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if s := c.sessions[sessionID]; s != nil {
+		return SessionInfo{ID: s.id, Status: s.status, QRCode: s.qrCode, Phone: s.phone, Connected: s.connected}
+	}
+	return SessionInfo{ID: sessionID, Status: "desconhecida"}
+}
+
+func (c *Client) ensureSession(sessionID string) *sessionState {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if s, ok := c.sessions[sessionID]; ok {
+		if s.status == "" {
+			s.status = "desconectado"
+		}
+		return s
+	}
+	s := &sessionState{id: sessionID, dbPath: c.sessionDBPath(sessionID), status: "desconectado"}
+	c.sessions[sessionID] = s
+	return s
+}
+
+func (c *Client) sessionDBPath(sessionID string) string {
+	if sessionID == "" || sessionID == c.defaultSession {
+		return c.baseDBPath
+	}
+	clean := sanitizeSessionID(sessionID)
+	ext := filepath.Ext(c.baseDBPath)
+	if ext == "" {
+		ext = ".db"
+	}
+	base := strings.TrimSuffix(c.baseDBPath, filepath.Ext(c.baseDBPath))
+	return base + "-" + clean + ext
+}
+
+func (c *Client) setStatus(sessionID, status, qrCode, phone string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	s, ok := c.sessions[sessionID]
+	if !ok {
+		s = &sessionState{id: sessionID, dbPath: c.sessionDBPath(sessionID)}
+		c.sessions[sessionID] = s
+	}
+	s.status = status
+	s.qrCode = qrCode
+	if phone != "" {
+		s.phone = phone
+	}
+	s.connected = status == "conectado"
+}
+
+func sanitizeSessionID(sessionID string) string {
+	var b strings.Builder
+	for _, r := range strings.ToLower(sessionID) {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
+			b.WriteRune(r)
+		}
+	}
+	if b.Len() == 0 {
+		return "session"
+	}
+	return b.String()
 }
 
 // limparTelefone normalizes a phone number for WhatsApp.
@@ -165,9 +341,13 @@ func limparTelefone(tel string) string {
 // printQR renders a basic QR representation for terminal.
 func printQR(code string) {
 	// Simple text-based QR display
+	short := code
+	if len(short) > 20 {
+		short = short[:20] + "..."
+	}
 	fmt.Println("┌─────────────────────────────────────┐")
 	fmt.Println("│                                     │")
-	fmt.Printf("│  QR Code: %-26s │\n", code[:20]+"...")
+	fmt.Printf("│  QR Code: %-26s │\n", short)
 	fmt.Println("│                                     │")
 	fmt.Println("│  Use seu celular para escanear:     │")
 	fmt.Println("│  WhatsApp > Dispositivos Conectados │")
