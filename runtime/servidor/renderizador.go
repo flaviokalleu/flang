@@ -317,7 +317,23 @@ function excluir(m,id){
   fetch('/api/'+m+'/'+id,{method:'DELETE'}).then(function(){carregar(m);addAtiv('d',m,label);toast('Excluído!');});
 }
 
+// WebSocket - real-time updates
+var ws;
+function connectWS(){
+  var proto=location.protocol==='https:'?'wss:':'ws:';
+  ws=new WebSocket(proto+'//'+location.host+'/ws');
+  ws.onmessage=function(e){
+    try{
+      var msg=JSON.parse(e.data);
+      if(msg.model) carregar(msg.model);
+    }catch(ex){}
+  };
+  ws.onclose=function(){setTimeout(connectWS,2000);};
+  ws.onerror=function(){ws.close();};
+}
+
 document.addEventListener('DOMContentLoaded',function(){
+  connectWS();
 `)
 	for _, model := range s.Program.Models {
 		b.WriteString(fmt.Sprintf("  carregar('%s');\n", lo(model.Name)))

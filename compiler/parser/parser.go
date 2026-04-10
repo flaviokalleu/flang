@@ -63,6 +63,10 @@ func (p *Parser) Parse() (*ast.Program, error) {
 			if err := p.parseLogica(); err != nil {
 				return nil, err
 			}
+		case lexer.TokenBanco:
+			if err := p.parseBanco(); err != nil {
+				return nil, err
+			}
 		case lexer.TokenIntegracoes:
 			p.advance()
 			p.skipWhitespace()
@@ -793,5 +797,66 @@ func (p *Parser) parseValidacao() error {
 	}
 
 	p.program.Rules = append(p.program.Rules, rule)
+	return nil
+}
+
+// parseBanco parses database configuration block.
+func (p *Parser) parseBanco() error {
+	p.advance() // consume 'banco'
+	p.skipWhitespace()
+
+	db := ast.DefaultDatabase()
+
+	// Check if driver name is on same line: banco postgres
+	if !p.isAtEnd() && p.current().Type == lexer.TokenIdentifier {
+		db.Driver = p.advance().Value
+	}
+	p.skipWhitespace()
+
+	for !p.isAtEnd() && !p.isBlockKeyword() {
+		tok := p.current()
+
+		if tok.Type == lexer.TokenNewline || tok.Type == lexer.TokenIndent {
+			p.advance()
+			continue
+		}
+
+		if tok.Type == lexer.TokenIdentifier || lexer.IsTypeKeyword(tok.Type) {
+			key := p.advance().Value
+			p.skipIndent()
+
+			if p.current().Type == lexer.TokenColon {
+				p.advance()
+				p.skipIndent()
+			}
+
+			val := ""
+			if p.current().Type == lexer.TokenString {
+				val = p.advance().Value
+			} else if !p.isAtEnd() && p.current().Type != lexer.TokenNewline {
+				val = p.advance().Value
+			}
+
+			switch key {
+			case "driver", "tipo", "type":
+				db.Driver = val
+			case "host", "servidor", "server":
+				db.Host = val
+			case "port", "porta":
+				db.Port = val
+			case "nome", "name", "database", "db":
+				db.Name = val
+			case "usuario", "user", "username":
+				db.User = val
+			case "senha", "password", "pass":
+				db.Password = val
+			}
+			continue
+		}
+
+		p.advance()
+	}
+
+	p.program.Database = db
 	return nil
 }

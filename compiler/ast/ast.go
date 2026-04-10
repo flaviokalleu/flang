@@ -7,14 +7,32 @@ type Node interface {
 
 // Program is the root AST node representing a complete .fg file.
 type Program struct {
-	System  *System
-	Theme   *Theme
-	Imports []*Import
-	Models  []*Model
-	Screens []*Screen
-	Events  []*Event
-	Actions []*Action
-	Rules   []*Rule
+	System   *System
+	Theme    *Theme
+	Database *DatabaseConfig
+	Imports  []*Import
+	Models   []*Model
+	Screens  []*Screen
+	Events   []*Event
+	Actions  []*Action
+	Rules    []*Rule
+}
+
+// DatabaseConfig holds database connection settings.
+type DatabaseConfig struct {
+	Driver   string // sqlite, mysql, postgres
+	Host     string
+	Port     string
+	Name     string
+	User     string
+	Password string
+}
+
+func (d *DatabaseConfig) NodeType() string { return "DatabaseConfig" }
+
+// DefaultDatabase returns SQLite config.
+func DefaultDatabase() *DatabaseConfig {
+	return &DatabaseConfig{Driver: "sqlite"}
 }
 
 func (p *Program) NodeType() string { return "Program" }

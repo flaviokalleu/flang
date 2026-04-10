@@ -33,6 +33,7 @@ const (
 	TokenIntegracoes
 	TokenTema
 	TokenLogica
+	TokenBanco
 
 	// Import
 	TokenImportar
@@ -131,6 +132,7 @@ var keywords = map[string]TokenType{
 	"integracoes": TokenIntegracoes,
 	"tema":        TokenTema,
 	"logica":      TokenLogica,
+	"banco":       TokenBanco,
 
 	// Import
 	"importar": TokenImportar,
@@ -213,6 +215,8 @@ var keywords = map[string]TokenType{
 	"integrations": TokenIntegracoes,
 	"theme":        TokenTema,
 	"logic":        TokenLogica,
+	"database":     TokenBanco,
+	"db":           TokenBanco,
 
 	// Import
 	"import": TokenImportar,
@@ -485,7 +489,7 @@ func (l *Lexer) scanIdentifier() error {
 // IsBlockKeyword returns true if the token type is a top-level block keyword.
 func IsBlockKeyword(tt TokenType) bool {
 	switch tt {
-	case TokenSistema, TokenDados, TokenTelas, TokenAcoes, TokenEventos, TokenIntegracoes, TokenTema, TokenLogica:
+	case TokenSistema, TokenDados, TokenTelas, TokenAcoes, TokenEventos, TokenIntegracoes, TokenTema, TokenLogica, TokenBanco:
 		return true
 	}
 	return false

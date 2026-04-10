@@ -17,22 +17,21 @@ type Servidor struct {
 	Program *ast.Program
 	DB      *banco.Banco
 	Porta   string
+	WS      *WSHub
 }
 
 // Novo creates a new server.
 func Novo(program *ast.Program, db *banco.Banco, porta string) *Servidor {
-	return &Servidor{Program: program, DB: db, Porta: porta}
+	return &Servidor{Program: program, DB: db, Porta: porta, WS: NewWSHub()}
 }
 
 // Iniciar starts the HTTP server.
 func (s *Servidor) Iniciar() error {
 	mux := http.NewServeMux()
 
-	// Dynamic page rendering from .fg screens
 	mux.HandleFunc("/", s.handlePagina)
-
-	// Auto-generated API from .fg models
 	mux.HandleFunc("/api/", s.handleAPI)
+	mux.HandleFunc("/ws", s.WS.HandleWS)
 
 	handler := s.middleware(mux)
 	return http.ListenAndServe(":"+s.Porta, handler)
@@ -59,15 +58,12 @@ func (s *Servidor) middleware(next http.Handler) http.Handler {
 	})
 }
 
-// handlePagina renders screens defined in .fg
 func (s *Servidor) handlePagina(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Write([]byte(s.renderHTML()))
 }
 
-// handleAPI handles REST API for all models defined in .fg
 func (s *Servidor) handleAPI(w http.ResponseWriter, r *http.Request) {
-	// Parse: /api/{modelo} or /api/{modelo}/{id}
 	path := strings.TrimPrefix(r.URL.Path, "/api/")
 	path = strings.TrimSuffix(path, "/")
 	parts := strings.SplitN(path, "/", 2)
@@ -84,7 +80,6 @@ func (s *Servidor) handleAPI(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(parts) == 2 && parts[1] != "" {
-		// /api/{modelo}/{id}
 		id, err := strconv.ParseInt(parts[1], 10, 64)
 		if err != nil {
 			s.jsonError(w, "ID inválido", http.StatusBadRequest)
@@ -94,7 +89,6 @@ func (s *Servidor) handleAPI(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// /api/{modelo}
 	switch r.Method {
 	case http.MethodGet:
 		items, err := s.DB.Listar(modelo)
@@ -114,6 +108,17 @@ func (s *Servidor) handleAPI(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			s.jsonError(w, err.Error(), http.StatusBadRequest)
 			return
+		}
+		// Broadcast via WebSocket
+		if id, ok := item["id"]; ok {
+			var idInt int64
+			switch v := id.(type) {
+			case int64:
+				idInt = v
+			case float64:
+				idInt = int64(v)
+			}
+			s.WS.Broadcast(WSMessage{Type: "criar", Model: modelo, ID: idInt, Data: item})
 		}
 		w.WriteHeader(http.StatusCreated)
 		s.jsonOK(w, item)
@@ -144,6 +149,7 @@ func (s *Servidor) handleAPIComID(w http.ResponseWriter, r *http.Request, modelo
 			s.jsonError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
+		s.WS.Broadcast(WSMessage{Type: "atualizar", Model: modelo, ID: id, Data: item})
 		s.jsonOK(w, item)
 
 	case http.MethodDelete:
@@ -151,6 +157,7 @@ func (s *Servidor) handleAPIComID(w http.ResponseWriter, r *http.Request, modelo
 			s.jsonError(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		s.WS.Broadcast(WSMessage{Type: "deletar", Model: modelo, ID: id})
 		w.WriteHeader(http.StatusNoContent)
 
 	default:

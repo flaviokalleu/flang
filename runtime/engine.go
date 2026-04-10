@@ -125,8 +125,7 @@ func Executar(arquivo string, porta string) error {
 		len(program.Models), len(program.Screens), len(program.Events), len(program.Rules))
 
 	// Database
-	dbPath := program.System.Name + ".db"
-	db, err := banco.Abrir(dbPath, program.Models)
+	db, err := banco.Abrir(program.Database, program.System.Name, program.Models)
 	if err != nil {
 		return fmt.Errorf("erro no banco: %w", err)
 	}
