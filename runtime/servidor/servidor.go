@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -37,6 +38,8 @@ type Servidor struct {
 	Interpreter *interp.Interpreter
 	rateLimiter map[string][]time.Time
 	rateMu      sync.Mutex
+	htmlCache   string
+	htmlCacheMu sync.RWMutex
 }
 
 // Novo creates a new server.
@@ -76,6 +79,48 @@ func (s *Servidor) Iniciar() error {
 	mux.HandleFunc("/api/_eval", s.handleEval)
 	mux.HandleFunc("/api/_log", s.handleLog)
 
+	// Custom routes
+	for _, route := range s.Program.Routes {
+		r := route // capture for closure
+		mux.HandleFunc(r.Path, func(w http.ResponseWriter, req *http.Request) {
+			if r.Method != "" && req.Method != r.Method {
+				s.jsonError(w, "método não permitido", http.StatusMethodNotAllowed)
+				return
+			}
+			if s.Interpreter != nil {
+				output := s.Interpreter.EvalStatements(r.Handler, nil)
+				w.Header().Set("Content-Type", "application/json")
+				if len(output) > 0 {
+					json.NewEncoder(w).Encode(map[string]interface{}{
+						"resultado": output[len(output)-1],
+						"output":    output,
+					})
+				} else {
+					json.NewEncoder(w).Encode(map[string]interface{}{"ok": true})
+				}
+			} else {
+				w.Header().Set("Content-Type", "application/json")
+				json.NewEncoder(w).Encode(map[string]interface{}{"ok": true})
+			}
+		})
+	}
+
+	// Custom pages
+	for _, page := range s.Program.Pages {
+		pg := page
+		mux.HandleFunc(pg.Path, func(w http.ResponseWriter, req *http.Request) {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			title := pg.Title
+			if title == "" {
+				title = s.Program.System.Name
+			}
+			pageHTML := fmt.Sprintf(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>%s</title>
+<style>body{font-family:system-ui;margin:0;padding:20px}</style></head><body>%s</body></html>`,
+				title, pg.Content)
+			w.Write([]byte(pageHTML))
+		})
+	}
+
 	// Apply middleware chain
 	var handler http.Handler = mux
 	if s.Auth != nil {
@@ -83,7 +128,38 @@ func (s *Servidor) Iniciar() error {
 	}
 	handler = s.middleware(handler)
 
-	return http.ListenAndServe(":"+s.Porta, handler)
+	// Periodic rate limiter cleanup
+	go func() {
+		for {
+			time.Sleep(5 * time.Minute)
+			s.rateMu.Lock()
+			now := time.Now()
+			for ip, times := range s.rateLimiter {
+				var recent []time.Time
+				for _, t := range times {
+					if now.Sub(t) < time.Minute {
+						recent = append(recent, t)
+					}
+				}
+				if len(recent) == 0 {
+					delete(s.rateLimiter, ip)
+				} else {
+					s.rateLimiter[ip] = recent
+				}
+			}
+			s.rateMu.Unlock()
+		}
+	}()
+
+	server := &http.Server{
+		Addr:           ":" + s.Porta,
+		Handler:        handler,
+		ReadTimeout:    15 * time.Second,
+		WriteTimeout:   30 * time.Second,
+		IdleTimeout:    60 * time.Second,
+		MaxHeaderBytes: 1 << 20, // 1MB
+	}
+	return server.ListenAndServe()
 }
 
 func (s *Servidor) middleware(next http.Handler) http.Handler {
@@ -129,9 +205,24 @@ func (s *Servidor) middleware(next http.Handler) http.Handler {
 	})
 }
 
+func (s *Servidor) getCachedHTML() string {
+	s.htmlCacheMu.RLock()
+	if s.htmlCache != "" {
+		defer s.htmlCacheMu.RUnlock()
+		return s.htmlCache
+	}
+	s.htmlCacheMu.RUnlock()
+
+	html := s.renderHTML()
+	s.htmlCacheMu.Lock()
+	s.htmlCache = html
+	s.htmlCacheMu.Unlock()
+	return html
+}
+
 func (s *Servidor) handlePagina(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write([]byte(s.renderHTML()))
+	w.Write([]byte(s.getCachedHTML()))
 }
 
 func (s *Servidor) handleEval(w http.ResponseWriter, r *http.Request) {
@@ -139,10 +230,22 @@ func (s *Servidor) handleEval(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
 		return
 	}
+
+	// Require authentication for code execution
+	if s.Auth != nil {
+		role := r.Header.Get("X-User-Role")
+		if role != "admin" {
+			s.jsonError(w, "Apenas administradores podem executar código", http.StatusForbidden)
+			return
+		}
+	}
+
 	if s.Interpreter == nil {
 		http.Error(w, `{"error":"interpreter not initialized"}`, http.StatusInternalServerError)
 		return
 	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, 64*1024) // 64KB max
 
 	var req struct {
 		Code string `json:"code"`
@@ -361,6 +464,7 @@ func (s *Servidor) handleAPI(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(items)
 
 	case http.MethodPost:
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB max
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			s.jsonError(w, "erro ao ler dados", http.StatusBadRequest)
@@ -403,6 +507,7 @@ func (s *Servidor) handleAPIComID(w http.ResponseWriter, r *http.Request, modelo
 		s.jsonOK(w, item)
 
 	case http.MethodPut:
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB max
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			s.jsonError(w, "erro ao ler dados", http.StatusBadRequest)
@@ -460,6 +565,18 @@ func (s *Servidor) handleUpload(w http.ResponseWriter, r *http.Request) {
 
 	// Generate unique filename
 	ext := filepath.Ext(header.Filename)
+
+	// Whitelist allowed extensions
+	allowedExts := map[string]bool{
+		".jpg": true, ".jpeg": true, ".png": true, ".gif": true, ".webp": true,
+		".svg": true, ".pdf": true, ".doc": true, ".docx": true, ".xls": true,
+		".xlsx": true, ".csv": true, ".txt": true, ".mp4": true, ".mp3": true,
+	}
+	if !allowedExts[strings.ToLower(ext)] {
+		s.jsonError(w, "Tipo de arquivo não permitido", http.StatusBadRequest)
+		return
+	}
+
 	name := fmt.Sprintf("%d%s", time.Now().UnixNano(), ext)
 	destPath := filepath.Join("uploads", name)
 
@@ -587,6 +704,30 @@ func (s *Servidor) handleProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// SSRF protection: block private/internal URLs
+	parsedURL, err := url.Parse(req.URL)
+	if err != nil {
+		s.jsonError(w, "URL inválida", http.StatusBadRequest)
+		return
+	}
+	host := parsedURL.Hostname()
+	// Block private IP ranges and dangerous hosts
+	blockedPrefixes := []string{"127.", "10.", "192.168.", "172.16.", "172.17.", "172.18.", "172.19.", "172.20.", "172.21.", "172.22.", "172.23.", "172.24.", "172.25.", "172.26.", "172.27.", "172.28.", "172.29.", "172.30.", "172.31.", "169.254.", "0."}
+	for _, prefix := range blockedPrefixes {
+		if strings.HasPrefix(host, prefix) {
+			s.jsonError(w, "URL bloqueada por segurança", http.StatusForbidden)
+			return
+		}
+	}
+	if host == "localhost" || host == "" || parsedURL.Scheme == "file" {
+		s.jsonError(w, "URL bloqueada por segurança", http.StatusForbidden)
+		return
+	}
+	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+		s.jsonError(w, "Apenas HTTP/HTTPS permitido", http.StatusBadRequest)
+		return
+	}
+
 	if req.Method == "" {
 		req.Method = "GET"
 	}
@@ -708,6 +849,10 @@ func (s *Servidor) handleExport(w http.ResponseWriter, r *http.Request, modelo s
 				val := ""
 				if v, ok := item[h]; ok && v != nil {
 					val = fmt.Sprintf("%v", v)
+					// Prevent CSV formula injection
+					if len(val) > 0 && (val[0] == '=' || val[0] == '+' || val[0] == '-' || val[0] == '@') {
+						val = "'" + val
+					}
 				}
 				row = append(row, val)
 			}

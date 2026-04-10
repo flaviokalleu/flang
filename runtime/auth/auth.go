@@ -222,8 +222,17 @@ func (a *Auth) Middleware(next http.Handler) http.Handler {
 
 		token := extractToken(r)
 		if token == "" {
-			// Allow GET requests without auth for public data
-			if r.Method == http.MethodGet {
+			// Allow GET on root (frontend), static files, and health
+			if r.Method == http.MethodGet && (r.URL.Path == "/" ||
+				strings.HasPrefix(r.URL.Path, "/uploads/") ||
+				r.URL.Path == "/health" || r.URL.Path == "/ws") {
+				next.ServeHTTP(w, r)
+				return
+			}
+			// Allow GET on API only if no auth is configured (backwards compat)
+			if r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/api/") {
+				// Set a flag so servidor can check screen-level public access
+				r.Header.Set("X-User-Role", "anonymous")
 				next.ServeHTTP(w, r)
 				return
 			}

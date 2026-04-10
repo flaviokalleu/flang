@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 
 	"github.com/flavio/flang/compiler/ast"
 	"github.com/flavio/flang/compiler/lexer"
@@ -52,6 +54,12 @@ func resolveImports(program *ast.Program, baseDir string, resolved map[string]bo
 		absPath, err := filepath.Abs(importPath)
 		if err != nil {
 			return fmt.Errorf("caminho inválido: %s", imp.Path)
+		}
+
+		// Security: prevent path traversal outside project directory
+		absBase, _ := filepath.Abs(baseDir)
+		if !strings.HasPrefix(absPath, absBase) {
+			return fmt.Errorf("importação bloqueada: '%s' fora do diretório do projeto", imp.Path)
 		}
 
 		// Avoid circular imports
@@ -149,9 +157,19 @@ func Executar(arquivo string, porta string) error {
 	// Auth
 	var authHandler *authpkg.Auth
 	if program.Auth != nil && program.Auth.Enabled {
+		// Use env variable for JWT secret if available
+		jwtSecret := program.Auth.JWTSecret
+		if envSecret := GetEnv("JWT_SECRET", ""); envSecret != "" {
+			jwtSecret = envSecret
+		}
+		if jwtSecret == "flang-secret-change-me" {
+			// Generate a random secret if default
+			jwtSecret = fmt.Sprintf("flang-%d-%s", time.Now().UnixNano(), program.System.Name)
+			fmt.Println("[flang] AVISO: JWT secret gerado automaticamente. Defina JWT_SECRET no .env para produção.")
+		}
 		authHandler = authpkg.Novo(
 			db.DB, program.Auth.UserModel, program.Auth.LoginField,
-			program.Auth.PassField, program.Auth.JWTSecret,
+			program.Auth.PassField, jwtSecret,
 		)
 		authHandler.SetupTable()
 		if len(program.Auth.Roles) > 0 {

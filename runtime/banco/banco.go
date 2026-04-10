@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/flavio/flang/compiler/ast"
 
@@ -39,6 +40,12 @@ func Abrir(config *ast.DatabaseConfig, appName string, models []*ast.Model) (*Ba
 	if err := db.Ping(); err != nil {
 		return nil, fmt.Errorf("erro ao conectar ao banco %s: %w", config.Driver, err)
 	}
+
+	// Connection pool settings
+	db.SetMaxOpenConns(25)
+	db.SetMaxIdleConns(5)
+	db.SetConnMaxLifetime(5 * time.Minute)
+	db.SetConnMaxIdleTime(1 * time.Minute)
 
 	fmt.Printf("[flang] Banco: %s\n", config.Driver)
 

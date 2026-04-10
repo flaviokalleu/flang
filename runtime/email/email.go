@@ -39,13 +39,19 @@ func (c *Client) EnviarEmail(to, subject, body string) error {
 	cfg := c.config
 	addr := cfg.Host + ":" + cfg.Port
 
+	// Detect HTML content
+	contentType := "text/plain"
+	if strings.Contains(body, "<") && strings.Contains(body, ">") {
+		contentType = "text/html"
+	}
+
 	// Build RFC 2822 message
 	var msg strings.Builder
 	msg.WriteString("From: " + cfg.From + "\r\n")
 	msg.WriteString("To: " + to + "\r\n")
 	msg.WriteString("Subject: " + subject + "\r\n")
 	msg.WriteString("MIME-Version: 1.0\r\n")
-	msg.WriteString("Content-Type: text/plain; charset=\"utf-8\"\r\n")
+	msg.WriteString("Content-Type: " + contentType + "; charset=\"utf-8\"\r\n")
 	msg.WriteString("\r\n")
 	msg.WriteString(body)
 

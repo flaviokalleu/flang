@@ -76,7 +76,29 @@ func (p *Parser) Parse() (*ast.Program, error) {
 				return nil, err
 			}
 		default:
-			p.advance()
+			handled := false
+			if tok.Type == lexer.TokenIdentifier {
+				switch tok.Value {
+				case "rotas", "routes":
+					if err := p.parseRotas(); err != nil {
+						return nil, err
+					}
+					handled = true
+				case "paginas", "pages":
+					if err := p.parsePaginas(); err != nil {
+						return nil, err
+					}
+					handled = true
+				case "sidebar", "menu":
+					if err := p.parseSidebar(); err != nil {
+						return nil, err
+					}
+					handled = true
+				}
+			}
+			if !handled {
+				p.advance()
+			}
 		}
 		p.skipWhitespace()
 	}
@@ -2808,4 +2830,200 @@ func (p *Parser) parsePrimary() (*ast.Expression, error) {
 		}
 		return &ast.Expression{Type: "literal", Value: nil}, nil
 	}
+}
+
+// parseRotas parses custom route definitions.
+// rotas
+//
+//	rota GET "/api/relatorio"
+//	  retornar "dados"
+func (p *Parser) parseRotas() error {
+	p.advance() // consume 'rotas'
+	p.skipWhitespace()
+
+	for !p.isAtEnd() && !p.isBlockKeyword() {
+		tok := p.current()
+		if tok.Type == lexer.TokenNewline || tok.Type == lexer.TokenIndent {
+			p.advance()
+			continue
+		}
+		// Break on other top-level custom blocks
+		if tok.Type == lexer.TokenIdentifier && (tok.Value == "rotas" || tok.Value == "routes" ||
+			tok.Value == "paginas" || tok.Value == "pages" || tok.Value == "sidebar" || tok.Value == "menu") {
+			break
+		}
+
+		if tok.Value == "rota" || tok.Value == "route" {
+			p.advance()
+			p.skipIndent()
+
+			route := &ast.CustomRoute{}
+
+			// Method: GET, POST, PUT, DELETE
+			if !p.isAtEnd() && p.current().Type != lexer.TokenNewline {
+				route.Method = strings.ToUpper(p.advance().Value)
+			}
+			p.skipIndent()
+
+			// Path
+			if !p.isAtEnd() && p.current().Type == lexer.TokenString {
+				route.Path = p.advance().Value
+			}
+
+			// Parse body as statements
+			body, err := p.parseBlock(0)
+			if err != nil {
+				return err
+			}
+			route.Handler = body
+
+			p.program.Routes = append(p.program.Routes, route)
+			continue
+		}
+
+		p.advance()
+	}
+	return nil
+}
+
+// parsePaginas parses custom HTML pages.
+// paginas
+//
+//	pagina "/sobre"
+//	  titulo "Sobre nós"
+//	  html "<div>Conteúdo</div>"
+func (p *Parser) parsePaginas() error {
+	p.advance() // consume 'paginas'
+	p.skipWhitespace()
+
+	for !p.isAtEnd() && !p.isBlockKeyword() {
+		tok := p.current()
+		if tok.Type == lexer.TokenNewline || tok.Type == lexer.TokenIndent {
+			p.advance()
+			continue
+		}
+		if tok.Type == lexer.TokenIdentifier && (tok.Value == "rotas" || tok.Value == "routes" ||
+			tok.Value == "paginas" || tok.Value == "pages" || tok.Value == "sidebar" || tok.Value == "menu") {
+			break
+		}
+
+		if tok.Value == "pagina" || tok.Value == "page" {
+			p.advance()
+			p.skipIndent()
+
+			page := &ast.CustomPage{}
+
+			// Path
+			if !p.isAtEnd() && p.current().Type == lexer.TokenString {
+				page.Path = p.advance().Value
+			}
+			p.skipWhitespace()
+
+			// Parse properties
+			for !p.isAtEnd() && !p.isBlockKeyword() {
+				inner := p.current()
+				if inner.Type == lexer.TokenNewline || inner.Type == lexer.TokenIndent {
+					p.advance()
+					continue
+				}
+				if inner.Value == "pagina" || inner.Value == "page" {
+					break
+				}
+				if inner.Type == lexer.TokenIdentifier && (inner.Value == "rotas" || inner.Value == "routes" ||
+					inner.Value == "paginas" || inner.Value == "pages" || inner.Value == "sidebar" || inner.Value == "menu") {
+					break
+				}
+				switch inner.Value {
+				case "titulo", "title":
+					p.advance()
+					p.skipIndent()
+					if !p.isAtEnd() && p.current().Type == lexer.TokenString {
+						page.Title = p.advance().Value
+					}
+				case "html", "conteudo", "content":
+					p.advance()
+					p.skipIndent()
+					if !p.isAtEnd() && p.current().Type == lexer.TokenString {
+						page.Content = p.advance().Value
+					}
+				default:
+					p.advance()
+				}
+			}
+
+			p.program.Pages = append(p.program.Pages, page)
+			continue
+		}
+
+		p.advance()
+	}
+	return nil
+}
+
+// parseSidebarBlock parses sidebar customization.
+// sidebar
+//
+//	item "Dashboard" icone "home" link "dashboard"
+//	item "Relatórios" icone "chart" link "/relatorios"
+func (p *Parser) parseSidebar() error {
+	p.advance() // consume 'sidebar'
+	p.skipWhitespace()
+
+	order := 0
+	for !p.isAtEnd() && !p.isBlockKeyword() {
+		tok := p.current()
+		if tok.Type == lexer.TokenNewline || tok.Type == lexer.TokenIndent {
+			p.advance()
+			continue
+		}
+		if tok.Type == lexer.TokenIdentifier && (tok.Value == "rotas" || tok.Value == "routes" ||
+			tok.Value == "paginas" || tok.Value == "pages" || tok.Value == "sidebar" || tok.Value == "menu") {
+			break
+		}
+
+		if tok.Value == "item" {
+			p.advance()
+			p.skipIndent()
+
+			item := &ast.SidebarItem{Order: order}
+			order++
+
+			// Label
+			if !p.isAtEnd() && p.current().Type == lexer.TokenString {
+				item.Label = p.advance().Value
+			}
+			p.skipIndent()
+
+			// Parse optional properties on same line
+			for !p.isAtEnd() && p.current().Type != lexer.TokenNewline {
+				if p.current().Type == lexer.TokenIndent {
+					p.advance()
+					continue
+				}
+				prop := p.current().Value
+				p.advance()
+				p.skipIndent()
+				switch prop {
+				case "icone", "icon":
+					if !p.isAtEnd() && p.current().Type == lexer.TokenString {
+						item.Icon = p.advance().Value
+					}
+				case "link", "href":
+					if !p.isAtEnd() && p.current().Type == lexer.TokenString {
+						item.Link = p.advance().Value
+					} else if !p.isAtEnd() && p.current().Type == lexer.TokenIdentifier {
+						item.Link = p.advance().Value
+					}
+				default:
+					// skip unknown props
+				}
+			}
+
+			p.program.SidebarItems = append(p.program.SidebarItems, item)
+			continue
+		}
+
+		p.advance()
+	}
+	return nil
 }

@@ -3,7 +3,9 @@ package cli
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	goruntime "runtime"
 	"strings"
 
 	"github.com/flavio/flang/runtime"
@@ -73,6 +75,19 @@ func Run(args []string) {
 		}
 		cmdInit(args[2])
 
+	case "build":
+		if len(args) < 3 {
+			fmt.Println("Uso: flang build <arquivo.fg> [--output nome]")
+			os.Exit(1)
+		}
+		output := ""
+		for i, a := range args {
+			if (a == "--output" || a == "-o") && i+1 < len(args) {
+				output = args[i+1]
+			}
+		}
+		cmdBuild(args[2], output)
+
 	case "help":
 		printUsage()
 
@@ -105,6 +120,7 @@ Comandos:
   check <arquivo.fg>        Verifica sintaxe sem executar
   new <nome>                Cria projeto plano (tudo num arquivo so)
   init <nome>               Cria projeto organizado (pastas por responsabilidade)
+  build <arquivo.fg> [-o nome]  Compila em executavel standalone
   docker                    Gera Dockerfile para o projeto atual
   version                   Mostra a versao
   help                      Mostra esta ajuda
@@ -428,4 +444,197 @@ CMD ["flang", "run", "inicio.fg"]
 	fmt.Println()
 	fmt.Println("[flang] Adicione novos modelos em dados/, telas em telas/,")
 	fmt.Println("        e importe no inicio.fg. Cada arquivo cuida de uma coisa.")
+}
+
+func cmdBuild(arquivo string, output string) {
+	// Verify the .fg file exists
+	if _, err := os.Stat(arquivo); os.IsNotExist(err) {
+		fmt.Printf("[flang] Erro: arquivo '%s' nao encontrado\n", arquivo)
+		os.Exit(1)
+	}
+
+	// First, verify the .fg file is valid
+	if err := runtime.Verificar(arquivo); err != nil {
+		fmt.Printf("[flang] Erro: %s\n", err)
+		os.Exit(1)
+	}
+
+	// Determine output name
+	if output == "" {
+		base := filepath.Base(arquivo)
+		output = strings.TrimSuffix(base, filepath.Ext(base))
+		if goruntime.GOOS == "windows" {
+			output += ".exe"
+		}
+	}
+
+	// Collect all .fg files in the directory
+	dir := filepath.Dir(arquivo)
+	if dir == "" || dir == "." {
+		dir, _ = os.Getwd()
+	} else {
+		dir, _ = filepath.Abs(dir)
+	}
+	mainFile := filepath.Base(arquivo)
+
+	// Create temp build directory
+	tmpDir, err := os.MkdirTemp("", "flang-build-*")
+	if err != nil {
+		fmt.Printf("[flang] Erro ao criar diretorio temporario: %s\n", err)
+		os.Exit(1)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Copy all .fg files to temp dir preserving structure
+	fgFiles := []string{}
+	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return nil
+		}
+		if filepath.Ext(path) == ".fg" {
+			rel, _ := filepath.Rel(dir, path)
+			destPath := filepath.Join(tmpDir, "app", rel)
+			os.MkdirAll(filepath.Dir(destPath), 0755)
+			data, _ := os.ReadFile(path)
+			os.WriteFile(destPath, data, 0644)
+			fgFiles = append(fgFiles, rel)
+		}
+		return nil
+	})
+
+	// Copy .env if exists
+	envPath := filepath.Join(dir, ".env")
+	if _, err := os.Stat(envPath); err == nil {
+		data, _ := os.ReadFile(envPath)
+		os.MkdirAll(filepath.Join(tmpDir, "app"), 0755)
+		os.WriteFile(filepath.Join(tmpDir, "app", ".env"), data, 0644)
+	}
+
+	// Generate main.go for the standalone binary
+	mainGo := `package main
+
+import (
+	"embed"
+	"fmt"
+	"os"
+	"path/filepath"
+
+	"github.com/flavio/flang/runtime"
+)
+
+//go:embed app/*
+var appFS embed.FS
+
+func main() {
+	// Extract embedded files to temp dir
+	tmpDir, err := os.MkdirTemp("", "flang-app-*")
+	if err != nil {
+		fmt.Printf("Erro: %s\n", err)
+		os.Exit(1)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Walk embedded FS and write files
+	entries, _ := appFS.ReadDir("app")
+	extractDir(appFS, "app", tmpDir, entries)
+
+	porta := "8080"
+	if len(os.Args) > 1 {
+		porta = os.Args[1]
+	}
+	if envPort := os.Getenv("PORT"); envPort != "" {
+		porta = envPort
+	}
+
+	arquivo := filepath.Join(tmpDir, "` + mainFile + `")
+	if err := runtime.Executar(arquivo, porta); err != nil {
+		fmt.Printf("Erro: %s\n", err)
+		os.Exit(1)
+	}
+}
+
+func extractDir(fs embed.FS, base string, dest string, entries []os.DirEntry) {
+	for _, e := range entries {
+		srcPath := base + "/" + e.Name()
+		destPath := filepath.Join(dest, e.Name())
+		if e.IsDir() {
+			os.MkdirAll(destPath, 0755)
+			subEntries, _ := fs.ReadDir(srcPath)
+			extractDir(fs, srcPath, destPath, subEntries)
+		} else {
+			data, _ := fs.ReadFile(srcPath)
+			os.WriteFile(destPath, data, 0644)
+		}
+	}
+}
+`
+
+	// Write main.go
+	if err := os.WriteFile(filepath.Join(tmpDir, "main.go"), []byte(mainGo), 0644); err != nil {
+		fmt.Printf("[flang] Erro ao gerar main.go: %s\n", err)
+		os.Exit(1)
+	}
+
+	// Find the flang module path for the replace directive
+	flangModPath := getFlangModPath()
+
+	// Generate go.mod
+	goMod := "module flang-app\n\ngo 1.26\n\nrequire github.com/flavio/flang v0.0.0\n\nreplace github.com/flavio/flang => " + flangModPath + "\n"
+	if err := os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte(goMod), 0644); err != nil {
+		fmt.Printf("[flang] Erro ao gerar go.mod: %s\n", err)
+		os.Exit(1)
+	}
+
+	// Build
+	fmt.Printf("[flang] Compilando %s...\n", output)
+
+	absOutput, _ := filepath.Abs(output)
+
+	cmd := exec.Command("go", "build", "-o", absOutput, "-ldflags", "-s -w", ".")
+	cmd.Dir = tmpDir
+	cmd.Env = append(os.Environ(), "CGO_ENABLED=0")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		fmt.Printf("[flang] Erro na compilacao: %s\n", err)
+		os.Exit(1)
+	}
+
+	// Get file size
+	info, _ := os.Stat(absOutput)
+	sizeMB := float64(info.Size()) / (1024 * 1024)
+
+	fmt.Printf("[flang] Build concluido: %s (%.1f MB)\n", output, sizeMB)
+	fmt.Printf("[flang] Execute: ./%s [porta]\n", output)
+}
+
+func getFlangModPath() string {
+	// Find the flang module path by looking for go.mod
+	exe, _ := os.Executable()
+	dir := filepath.Dir(exe)
+
+	// Walk up looking for go.mod with flang module
+	for {
+		modPath := filepath.Join(dir, "go.mod")
+		if _, err := os.Stat(modPath); err == nil {
+			data, _ := os.ReadFile(modPath)
+			if strings.Contains(string(data), "flavio/flang") || strings.Contains(string(data), "module") {
+				return dir
+			}
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
+	}
+
+	// Fallback: try GOPATH
+	gopath := os.Getenv("GOPATH")
+	if gopath == "" {
+		home, _ := os.UserHomeDir()
+		gopath = filepath.Join(home, "go")
+	}
+	return filepath.Join(gopath, "src", "github.com", "flavio", "flang")
 }

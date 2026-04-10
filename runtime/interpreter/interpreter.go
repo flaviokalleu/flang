@@ -1000,6 +1000,166 @@ func (interp *Interpreter) callBuiltin(name string, args []interface{}) (interfa
 			return string(resp), true
 		}
 		return nil, true
+
+	case "paralelo", "parallel":
+		// paralelo([func1, func2, func3]) — run functions in parallel, return results
+		if len(args) < 1 {
+			return []interface{}{}, true
+		}
+		if tasks, ok := args[0].([]interface{}); ok {
+			results := make([]interface{}, len(tasks))
+			var wg sync.WaitGroup
+			var mu sync.Mutex
+			for i, task := range tasks {
+				wg.Add(1)
+				go func(idx int, t interface{}) {
+					defer wg.Done()
+					defer func() {
+						if r := recover(); r != nil {
+							if sig, ok := r.(signal); ok && sig.Type == signalReturn {
+								mu.Lock()
+								results[idx] = sig.Value
+								mu.Unlock()
+								return
+							}
+							mu.Lock()
+							results[idx] = fmt.Sprintf("erro: %v", r)
+							mu.Unlock()
+						}
+					}()
+					// If it's a function name, call it
+					if name, ok := t.(string); ok {
+						if fn, exists := interp.Functions[name]; exists {
+							val := interp.callFunction(fn, nil)
+							mu.Lock()
+							results[idx] = val
+							mu.Unlock()
+						}
+					}
+				}(i, task)
+			}
+			wg.Wait()
+			return results, true
+		}
+		return []interface{}{}, true
+
+	case "esperar", "await", "wait":
+		// esperar(milliseconds) — async sleep
+		if len(args) < 1 {
+			return nil, true
+		}
+		ms := int(toNumber(args[0]))
+		if ms > 30000 {
+			ms = 30000 // max 30 seconds
+		}
+		time.Sleep(time.Duration(ms) * time.Millisecond)
+		return nil, true
+
+	case "timeout":
+		// timeout(func_name, milliseconds) — run function with timeout
+		if len(args) < 2 {
+			return nil, true
+		}
+		funcName := toString(args[0])
+		ms := int(toNumber(args[1]))
+		if ms > 60000 {
+			ms = 60000
+		}
+
+		fn, exists := interp.Functions[funcName]
+		if !exists {
+			return nil, true
+		}
+
+		resultCh := make(chan interface{}, 1)
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					if sig, ok := r.(signal); ok && sig.Type == signalReturn {
+						resultCh <- sig.Value
+						return
+					}
+					resultCh <- nil
+				}
+			}()
+			val := interp.callFunction(fn, nil)
+			resultCh <- val
+		}()
+
+		select {
+		case result := <-resultCh:
+			return result, true
+		case <-time.After(time.Duration(ms) * time.Millisecond):
+			interp.AppendLog(fmt.Sprintf("AVISO: timeout em '%s' após %dms", funcName, ms))
+			return nil, true
+		}
+
+	case "consultar_paralelo", "parallel_query":
+		// consultar_paralelo(["modelo1", "modelo2"]) — query multiple models in parallel
+		if len(args) < 1 || interp.DB == nil {
+			return []interface{}{}, true
+		}
+		if models, ok := args[0].([]interface{}); ok {
+			results := make(map[string]interface{})
+			var wg sync.WaitGroup
+			var mu sync.Mutex
+			for _, m := range models {
+				modelName := strings.ToLower(toString(m))
+				if _, exists := interp.DB.Models[modelName]; !exists {
+					continue
+				}
+				wg.Add(1)
+				go func(name string) {
+					defer wg.Done()
+					rows, _, err := interp.DB.Listar(name, nil)
+					if err != nil {
+						return
+					}
+					items := make([]interface{}, len(rows))
+					for i, r := range rows {
+						items[i] = r
+					}
+					mu.Lock()
+					results[name] = items
+					mu.Unlock()
+				}(modelName)
+			}
+			wg.Wait()
+			return results, true
+		}
+		return map[string]interface{}{}, true
+
+	case "chamar_async", "async_call", "http_async":
+		// chamar_async(["url1", "url2"]) — fetch multiple URLs in parallel
+		if len(args) < 1 {
+			return []interface{}{}, true
+		}
+		if urls, ok := args[0].([]interface{}); ok {
+			results := make([]interface{}, len(urls))
+			var wg sync.WaitGroup
+			for i, u := range urls {
+				wg.Add(1)
+				go func(idx int, urlStr string) {
+					defer wg.Done()
+					if interp.HTTPClient != nil {
+						resp, err := interp.HTTPClient.Chamar("GET", urlStr, nil)
+						if err != nil {
+							results[idx] = map[string]interface{}{"erro": err.Error()}
+							return
+						}
+						var parsed interface{}
+						if json.Unmarshal(resp, &parsed) == nil {
+							results[idx] = parsed
+						} else {
+							results[idx] = string(resp)
+						}
+					}
+				}(i, toString(u))
+			}
+			wg.Wait()
+			return results, true
+		}
+		return []interface{}{}, true
 	}
 
 	return nil, false

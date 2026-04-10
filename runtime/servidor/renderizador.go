@@ -2,6 +2,7 @@ package servidor
 
 import (
 	"fmt"
+	"html"
 	"strings"
 
 	"github.com/flavio/flang/compiler/ast"
@@ -27,7 +28,7 @@ func (s *Servidor) renderHTML() string {
 	// --- Head ---
 	b.WriteString(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>` + cap(s.Program.System.Name) + `</title>
+<title>` + html.EscapeString(cap(s.Program.System.Name)) + `</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=` + strings.ReplaceAll(theme.Font, " ", "+") + `:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
@@ -129,26 +130,47 @@ func (s *Servidor) renderSidebar(theme *ast.Theme) string {
 	} else {
 		b.WriteString(`<div class="sb-logo">` + svgIcon("zap") + `</div>`)
 	}
-	b.WriteString(`<span class="sb-name">` + cap(s.Program.System.Name) + `</span>`)
+	b.WriteString(`<span class="sb-name">` + html.EscapeString(cap(s.Program.System.Name)) + `</span>`)
 	b.WriteString(`<button class="sb-collapse" onclick="toggleCollapse()" title="Recolher">` + svgIcon("chevleft") + `</button></div>`)
 	// Nav
 	b.WriteString(`<nav class="sb-nav">`)
-	b.WriteString(`<a class="sb-link active" onclick="irPara('dashboard',this)" href="#">`)
-	b.WriteString(`<div class="sb-icon">` + svgIcon("layout") + `</div><span>Dashboard</span></a>`)
-	for _, model := range s.Program.Models {
-		name := lo(model.Name)
-		icon := modelIcon(name)
-		if model.Icon != "" {
-			icon = model.Icon
+	if len(s.Program.SidebarItems) > 0 {
+		// Custom sidebar items defined by user
+		for _, item := range s.Program.SidebarItems {
+			label := item.Label
+			if label == "" {
+				continue
+			}
+			icon := item.Icon
+			if icon == "" {
+				icon = "grid"
+			}
+			link := item.Link
+			if link == "" {
+				link = lo(label)
+			}
+			b.WriteString(fmt.Sprintf(`<a class="sb-link" onclick="irPara('%s',this)" href="#">`, html.EscapeString(link)))
+			b.WriteString(`<div class="sb-icon">` + svgIcon(icon) + `</div><span>` + html.EscapeString(cap(label)) + `</span></a>`)
 		}
-		b.WriteString(fmt.Sprintf(`<a class="sb-link" onclick="irPara('%s',this)" href="#">`, name))
-		b.WriteString(`<div class="sb-icon">` + svgIcon(icon) + `</div><span>` + cap(model.Name) + `</span></a>`)
-	}
-	// Custom screens nav
-	for _, scr := range s.Program.Screens {
-		name := lo(scr.Name)
-		b.WriteString(fmt.Sprintf(`<a class="sb-link" onclick="irPara('screen-%s',this)" href="#">`, name))
-		b.WriteString(`<div class="sb-icon">` + svgIcon("grid") + `</div><span>` + cap(scr.Name) + `</span></a>`)
+	} else {
+		// Auto-generated sidebar from models and screens
+		b.WriteString(`<a class="sb-link active" onclick="irPara('dashboard',this)" href="#">`)
+		b.WriteString(`<div class="sb-icon">` + svgIcon("layout") + `</div><span>Dashboard</span></a>`)
+		for _, model := range s.Program.Models {
+			name := lo(model.Name)
+			icon := modelIcon(name)
+			if model.Icon != "" {
+				icon = model.Icon
+			}
+			b.WriteString(fmt.Sprintf(`<a class="sb-link" onclick="irPara('%s',this)" href="#">`, name))
+			b.WriteString(`<div class="sb-icon">` + svgIcon(icon) + `</div><span>` + html.EscapeString(cap(model.Name)) + `</span></a>`)
+		}
+		// Custom screens nav
+		for _, scr := range s.Program.Screens {
+			name := lo(scr.Name)
+			b.WriteString(fmt.Sprintf(`<a class="sb-link" onclick="irPara('screen-%s',this)" href="#">`, name))
+			b.WriteString(`<div class="sb-icon">` + svgIcon("grid") + `</div><span>` + html.EscapeString(cap(scr.Name)) + `</span></a>`)
+		}
 	}
 	b.WriteString(`</nav></div>`)
 	// Footer
@@ -192,7 +214,7 @@ func (s *Servidor) renderDashboard(theme *ast.Theme) string {
 		b.WriteString(fmt.Sprintf(`<div class="bento-card" onclick="irParaNav('%s')" style="--accent:%s">`, name, color))
 		b.WriteString(`<div class="bc-icon">` + svgIcon(icon) + `</div>`)
 		b.WriteString(fmt.Sprintf(`<div class="bc-num" id="stat-%s">0</div>`, name))
-		b.WriteString(`<div class="bc-label">` + cap(model.Name) + `</div>`)
+		b.WriteString(`<div class="bc-label">` + html.EscapeString(cap(model.Name)) + `</div>`)
 		b.WriteString(`<div class="bc-glow"></div></div>`)
 	}
 	b.WriteString(`</div>`)
@@ -231,7 +253,7 @@ func (s *Servidor) renderDashboard(theme *ast.Theme) string {
 	b.WriteString(`<div id="atividade" class="ativ-list"><div class="empty-state">` + svgIcon("inbox") + `<p>Nenhuma atividade</p></div></div></div>`)
 	b.WriteString(`<div class="card"><div class="card-head">` + svgIcon("info") + `<h3>Informa&ccedil;&otilde;es</h3></div>`)
 	b.WriteString(`<div class="info-list">`)
-	b.WriteString(fmt.Sprintf(`<div class="info-row"><span class="info-k">Sistema</span><span class="info-v">%s</span></div>`, cap(s.Program.System.Name)))
+	b.WriteString(fmt.Sprintf(`<div class="info-row"><span class="info-k">Sistema</span><span class="info-v">%s</span></div>`, html.EscapeString(cap(s.Program.System.Name))))
 	b.WriteString(fmt.Sprintf(`<div class="info-row"><span class="info-k">Modelos</span><span class="info-v">%d</span></div>`, len(s.Program.Models)))
 	b.WriteString(fmt.Sprintf(`<div class="info-row"><span class="info-k">Telas</span><span class="info-v">%d</span></div>`, len(s.Program.Screens)))
 	b.WriteString(`<div class="info-row"><span class="info-k">Engine</span><span class="info-v">Flang v0.3</span></div>`)
@@ -272,7 +294,7 @@ func (s *Servidor) renderCustomScreens(b *strings.Builder) {
 			title = cap(scr.Name)
 		}
 		b.WriteString(fmt.Sprintf(`<div id="secao-screen-%s" class="section" style="display:none">`, name))
-		b.WriteString(`<div class="sec-head"><div class="sec-left"><h2>` + title + `</h2></div></div>`)
+		b.WriteString(`<div class="sec-head"><div class="sec-left"><h2>` + html.EscapeString(title) + `</h2></div></div>`)
 		for _, comp := range scr.Components {
 			s.renderScreenComponent(b, comp)
 		}
@@ -337,12 +359,12 @@ func (s *Servidor) renderModelSection(b *strings.Builder, model *ast.Model, them
 	// Section header
 	b.WriteString(`<div class="sec-head">`)
 	b.WriteString(`<div class="sec-left">`)
-	b.WriteString(fmt.Sprintf(`<div class="sec-search"><input type="text" placeholder="Buscar em %s..." oninput="filtrar('%s',this.value)">`, capName, name))
+	b.WriteString(fmt.Sprintf(`<div class="sec-search"><input type="text" placeholder="Buscar em %s..." oninput="filtrar('%s',this.value)">`, html.EscapeString(capName), name))
 	b.WriteString(svgIcon("search") + `</div></div>`)
 	b.WriteString(`<div class="sec-actions">`)
 	b.WriteString(fmt.Sprintf(`<button class="btn btn-ghost btn-sm" onclick="exportar('%s','csv')" title="CSV">%s<span>CSV</span></button>`, name, svgIcon("file")))
 	b.WriteString(fmt.Sprintf(`<button class="btn btn-ghost btn-sm" onclick="exportar('%s','json')" title="JSON">%s<span>JSON</span></button>`, name, svgIcon("file")))
-	b.WriteString(fmt.Sprintf(`<button class="btn btn-glow" onclick="abrirForm('%s')">%s<span>Novo %s</span></button>`, name, svgIcon("plus"), capName))
+	b.WriteString(fmt.Sprintf(`<button class="btn btn-glow" onclick="abrirForm('%s')">%s<span>Novo %s</span></button>`, name, svgIcon("plus"), html.EscapeString(capName)))
 	b.WriteString(`</div></div>`)
 
 	// Table
@@ -352,7 +374,7 @@ func (s *Servidor) renderModelSection(b *strings.Builder, model *ast.Model, them
 		if f.Type == ast.FieldSenha {
 			continue
 		}
-		b.WriteString(`<th>` + cap(f.Name) + `</th>`)
+		b.WriteString(`<th>` + html.EscapeString(cap(f.Name)) + `</th>`)
 	}
 	b.WriteString(`<th class="th-act"></th></tr></thead>`)
 	b.WriteString(fmt.Sprintf(`<tbody id="tabela-%s"></tbody></table>`, name))
@@ -388,7 +410,7 @@ func (s *Servidor) renderFormField(b *strings.Builder, model *ast.Model, f *ast.
 	}
 
 	b.WriteString(`<div class="field">`)
-	b.WriteString(fmt.Sprintf(`<label for="%s-%s">%s</label>`, name, fname, cap(f.Name)))
+	b.WriteString(fmt.Sprintf(`<label for="%s-%s">%s</label>`, name, fname, html.EscapeString(cap(f.Name))))
 
 	switch {
 	// FK dropdown
@@ -403,7 +425,7 @@ func (s *Servidor) renderFormField(b *strings.Builder, model *ast.Model, f *ast.
 		b.WriteString(fmt.Sprintf(`<select id="%s-%s"%s>`, name, fname, req))
 		b.WriteString(`<option value="">Selecione...</option>`)
 		for _, v := range f.EnumValues {
-			b.WriteString(fmt.Sprintf(`<option value="%s">%s</option>`, v, cap(v)))
+			b.WriteString(fmt.Sprintf(`<option value="%s">%s</option>`, html.EscapeString(v), html.EscapeString(cap(v))))
 		}
 		b.WriteString(`</select>`)
 
@@ -419,7 +441,7 @@ func (s *Servidor) renderFormField(b *strings.Builder, model *ast.Model, f *ast.
 	// Long text
 	case f.Type == ast.FieldTextoLongo:
 		b.WriteString(fmt.Sprintf(`<textarea id="%s-%s" placeholder="%s" rows="4"%s></textarea>`,
-			name, fname, cap(f.Name), req))
+			name, fname, html.EscapeString(cap(f.Name)), req))
 
 	// File/image upload
 	case f.Type == ast.FieldImagem || f.Type == ast.FieldUpload || f.Type == ast.FieldArquivo:
@@ -444,7 +466,7 @@ func (s *Servidor) renderFormField(b *strings.Builder, model *ast.Model, f *ast.
 			inputType = "password"
 		}
 		b.WriteString(fmt.Sprintf(`<input type="%s" id="%s-%s" placeholder="%s"%s%s>`,
-			inputType, name, fname, cap(f.Name), extra, req))
+			inputType, name, fname, html.EscapeString(cap(f.Name)), extra, req))
 	}
 
 	b.WriteString(`</div>`)

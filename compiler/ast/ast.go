@@ -20,10 +20,13 @@ type Program struct {
 	Actions   []*Action
 	Rules     []*Rule
 	Notifiers []*Notifier
-	Crons     []*CronJob
-	Env       map[string]string
-	Functions []*FuncDecl
-	Scripts   []*Statement
+	Crons        []*CronJob
+	Env          map[string]string
+	Functions    []*FuncDecl
+	Scripts      []*Statement
+	Routes       []*CustomRoute
+	Pages        []*CustomPage
+	SidebarItems []*SidebarItem
 }
 
 func (p *Program) NodeType() string { return "Program" }
@@ -48,6 +51,9 @@ func (p *Program) Merge(other *Program) {
 	p.Crons = append(p.Crons, other.Crons...)
 	p.Functions = append(p.Functions, other.Functions...)
 	p.Scripts = append(p.Scripts, other.Scripts...)
+	p.Routes = append(p.Routes, other.Routes...)
+	p.Pages = append(p.Pages, other.Pages...)
+	p.SidebarItems = append(p.SidebarItems, other.SidebarItems...)
 }
 
 // ==================== System ====================
@@ -211,6 +217,7 @@ type EmailConfig struct {
 	User     string
 	Password string
 	From     string
+	Template string // HTML template for emails
 }
 
 func (e *EmailConfig) NodeType() string { return "EmailConfig" }
@@ -378,6 +385,37 @@ type CronJob struct {
 }
 
 func (c *CronJob) NodeType() string { return "CronJob" }
+
+// ==================== Custom Route ====================
+
+type CustomRoute struct {
+	Method  string       // GET, POST, PUT, DELETE
+	Path    string       // /api/relatorio, /api/custom/stats
+	Handler []*Statement // code to execute
+}
+
+func (c *CustomRoute) NodeType() string { return "CustomRoute" }
+
+// ==================== Custom Page ====================
+
+type CustomPage struct {
+	Path    string // URL path
+	Title   string
+	Content string // raw HTML content
+}
+
+func (c *CustomPage) NodeType() string { return "CustomPage" }
+
+// ==================== Sidebar Item ====================
+
+type SidebarItem struct {
+	Label string
+	Icon  string
+	Link  string // model name, screen name, or URL
+	Order int
+}
+
+func (s *SidebarItem) NodeType() string { return "SidebarItem" }
 
 // ==================== Scripting/Logic AST ====================
 
