@@ -932,7 +932,7 @@ body.dark .pill-blue{background:rgba(59,130,246,.15);color:#93c5fd}
 .form-input{width:100%;padding:10px 14px;border-radius:calc(var(--radius)*0.6);border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:.9rem;outline:none;transition:border .2s}
 .form-input:focus{border-color:var(--primary)}
 .modal-wrap{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);backdrop-filter:blur(6px);
-  -webkit-backdrop-filter:blur(6px);z-index:100;align-items:center;justify-content:center;padding:20px}
+  -webkit-backdrop-filter:blur(6px);z-index:9000;align-items:center;justify-content:center;padding:20px}
 .modal-wrap.show{display:flex}
 .modal{width:100%;max-width:500px;max-height:85vh;overflow-y:auto;box-shadow:var(--shadow3);
   background:var(--card-bg);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
