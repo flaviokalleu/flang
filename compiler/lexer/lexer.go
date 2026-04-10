@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"unicode"
+
+	"github.com/flavio/flang/compiler/idiomas"
 )
 
 // TokenType identifies the kind of token.
@@ -511,9 +513,15 @@ func (l *Lexer) scanToken() error {
 		return l.scanNumber()
 	}
 
-	// Identifier or keyword
-	if unicode.IsLetter(ch) || ch == '_' {
+	// Identifier or keyword (supports all Unicode scripts including CJK, Devanagari, Arabic, etc.)
+	if unicode.IsLetter(ch) || ch == '_' || unicode.IsMark(ch) {
 		return l.scanIdentifier()
+	}
+
+	// Skip unknown unicode marks (combining characters at unexpected positions)
+	if unicode.IsMark(ch) || unicode.Is(unicode.Mn, ch) {
+		l.advance()
+		return nil
 	}
 
 	return fmt.Errorf("unexpected character %q at line %d, column %d", string(ch), l.line, l.col)
@@ -571,17 +579,34 @@ func (l *Lexer) scanNumber() error {
 func (l *Lexer) scanIdentifier() error {
 	startCol := l.col
 	var buf strings.Builder
-	for l.pos < len(l.source) && (unicode.IsLetter(l.peek()) || unicode.IsDigit(l.peek()) || l.peek() == '_') {
+	for l.pos < len(l.source) && (unicode.IsLetter(l.peek()) || unicode.IsDigit(l.peek()) || l.peek() == '_' || unicode.IsMark(l.peek())) {
 		buf.WriteRune(l.advance())
 	}
 	word := buf.String()
 	lower := strings.ToLower(word)
 
+	// Check native keywords first (PT + EN)
 	if tt, ok := keywords[lower]; ok {
 		l.tokens = append(l.tokens, Token{Type: tt, Value: lower, Line: l.line, Column: startCol})
-	} else {
-		l.tokens = append(l.tokens, Token{Type: TokenIdentifier, Value: word, Line: l.line, Column: startCol})
+		return nil
 	}
+
+	// Check multilingual translations → canonical PT keyword → token
+	if canonical, ok := idiomas.Translations[lower]; ok && canonical != "_skip" {
+		if tt, ok := keywords[canonical]; ok {
+			l.tokens = append(l.tokens, Token{Type: tt, Value: canonical, Line: l.line, Column: startCol})
+			return nil
+		}
+	}
+	// Also try the original word (handles CJK characters that may not lowercase)
+	if canonical, ok := idiomas.Translations[word]; ok && canonical != "_skip" {
+		if tt, ok := keywords[canonical]; ok {
+			l.tokens = append(l.tokens, Token{Type: tt, Value: canonical, Line: l.line, Column: startCol})
+			return nil
+		}
+	}
+
+	l.tokens = append(l.tokens, Token{Type: TokenIdentifier, Value: word, Line: l.line, Column: startCol})
 	return nil
 }
 

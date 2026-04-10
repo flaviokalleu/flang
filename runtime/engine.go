@@ -144,6 +144,7 @@ func Executar(arquivo string, porta string) error {
 	if err != nil {
 		return fmt.Errorf("erro no banco: %w", err)
 	}
+	db.Rules = program.Rules
 
 	// Auth
 	var authHandler *authpkg.Auth

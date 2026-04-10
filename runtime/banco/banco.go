@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/flavio/flang/compiler/ast"
@@ -18,6 +19,7 @@ type Banco struct {
 	DB     *sql.DB
 	Models map[string]*ast.Model
 	Driver string // "sqlite", "mysql", "postgres"
+	Rules  []*ast.Rule // user-defined validation rules
 }
 
 // Abrir creates the database and tables from model definitions.
@@ -439,6 +441,10 @@ func (b *Banco) Atualizar(modelo string, id int64, dados json.RawMessage) (map[s
 		return nil, fmt.Errorf("dados inválidos: %w", err)
 	}
 
+	if err := b.Validar(modelo, input); err != nil {
+		return nil, err
+	}
+
 	var sets []string
 	var vals []any
 	n := 1
@@ -658,6 +664,92 @@ func (b *Banco) Validar(modelo string, dados map[string]any) error {
 			}, strVal)
 			if len(clean) < 7 {
 				return fmt.Errorf("telefone inválido no campo '%s'", f.Name)
+			}
+		}
+	}
+
+	// Check user-defined validation rules
+	for _, rule := range b.Rules {
+		if rule.Action != "validar" {
+			continue
+		}
+		fname := strings.ToLower(rule.Field)
+		val, exists := dados[fname]
+
+		// Check if this rule applies to a field in this model
+		fieldInModel := false
+		for _, f := range model.Fields {
+			if strings.ToLower(f.Name) == fname {
+				fieldInModel = true
+				break
+			}
+		}
+		if !fieldInModel {
+			continue
+		}
+
+		strVal := ""
+		if val != nil {
+			strVal = fmt.Sprintf("%v", val)
+		}
+		numVal := float64(0)
+		if val != nil {
+			if n, err := strconv.ParseFloat(strVal, 64); err == nil {
+				numVal = n
+			}
+		}
+
+		switch rule.Operator {
+		case "obrigatorio", "required":
+			if !exists || val == nil || strVal == "" {
+				return fmt.Errorf("campo '%s' é obrigatório", rule.Field)
+			}
+		case "igual", "equals", "equal":
+			if rule.Value == "@" {
+				// Special: must contain @
+				if !strings.Contains(strVal, "@") {
+					return fmt.Errorf("campo '%s' deve conter '@'", rule.Field)
+				}
+			} else if strVal != rule.Value {
+				return fmt.Errorf("campo '%s' deve ser igual a '%s'", rule.Field, rule.Value)
+			}
+		case "diferente", "not_equal":
+			if strVal == rule.Value {
+				return fmt.Errorf("campo '%s' não pode ser '%s'", rule.Field, rule.Value)
+			}
+		case "maior", "greater", ">":
+			ruleNum, _ := strconv.ParseFloat(rule.Value, 64)
+			if numVal <= ruleNum {
+				return fmt.Errorf("campo '%s' deve ser maior que %s", rule.Field, rule.Value)
+			}
+		case "menor", "less", "<":
+			ruleNum, _ := strconv.ParseFloat(rule.Value, 64)
+			if numVal >= ruleNum {
+				return fmt.Errorf("campo '%s' deve ser menor que %s", rule.Field, rule.Value)
+			}
+		case "maior_igual", ">=":
+			ruleNum, _ := strconv.ParseFloat(rule.Value, 64)
+			if numVal < ruleNum {
+				return fmt.Errorf("campo '%s' deve ser maior ou igual a %s", rule.Field, rule.Value)
+			}
+		case "menor_igual", "<=":
+			ruleNum, _ := strconv.ParseFloat(rule.Value, 64)
+			if numVal > ruleNum {
+				return fmt.Errorf("campo '%s' deve ser menor ou igual a %s", rule.Field, rule.Value)
+			}
+		case "minimo", "min", "min_length":
+			ruleNum, _ := strconv.ParseFloat(rule.Value, 64)
+			if float64(len(strVal)) < ruleNum {
+				return fmt.Errorf("campo '%s' deve ter no mínimo %s caracteres", rule.Field, rule.Value)
+			}
+		case "maximo", "max", "max_length":
+			ruleNum, _ := strconv.ParseFloat(rule.Value, 64)
+			if float64(len(strVal)) > ruleNum {
+				return fmt.Errorf("campo '%s' deve ter no máximo %s caracteres", rule.Field, rule.Value)
+			}
+		case "contem", "contains":
+			if !strings.Contains(strVal, rule.Value) {
+				return fmt.Errorf("campo '%s' deve conter '%s'", rule.Field, rule.Value)
 			}
 		}
 	}
