@@ -1,7 +1,0 @@
-sistema restaurante
-
-importar "tema.fg"
-importar "dados.fg"
-importar "telas.fg"
-importar "eventos.fg"
-importar "regras.fg"
