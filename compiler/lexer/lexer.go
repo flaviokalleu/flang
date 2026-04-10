@@ -99,6 +99,11 @@ const (
 	TokenIcone
 	TokenEscuro
 
+	// Integration keywords
+	TokenWhatsapp
+	TokenMensagem
+	TokenNotificar
+
 	// Modifier keywords
 	TokenObrigatorio
 	TokenUnico
@@ -197,6 +202,11 @@ var keywords = map[string]TokenType{
 	"icone":  TokenIcone,
 	"escuro": TokenEscuro,
 
+	// Integracoes
+	"whatsapp":  TokenWhatsapp,
+	"mensagem":  TokenMensagem,
+	"notificar": TokenNotificar,
+
 	// Modificadores
 	"obrigatorio": TokenObrigatorio,
 	"unico":       TokenUnico,
@@ -277,6 +287,10 @@ var keywords = map[string]TokenType{
 	"color": TokenCor,
 	"icon":  TokenIcone,
 	"dark":  TokenEscuro,
+
+	// Integrations (EN)
+	"message": TokenMensagem,
+	"notify":  TokenNotificar,
 
 	// Modifiers
 	"required": TokenObrigatorio,

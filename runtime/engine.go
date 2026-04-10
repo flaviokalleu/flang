@@ -10,6 +10,7 @@ import (
 	"github.com/flavio/flang/compiler/parser"
 	"github.com/flavio/flang/runtime/banco"
 	"github.com/flavio/flang/runtime/servidor"
+	wa "github.com/flavio/flang/runtime/whatsapp"
 )
 
 // parseFG reads and parses a single .fg file.
@@ -130,8 +131,22 @@ func Executar(arquivo string, porta string) error {
 		return fmt.Errorf("erro no banco: %w", err)
 	}
 
+	// WhatsApp
+	var waClient *wa.Client
+	if program.WhatsApp != nil && program.WhatsApp.Enabled {
+		waClient = wa.Novo(program.WhatsApp.DBPath)
+		if err := waClient.Conectar(); err != nil {
+			fmt.Printf("[flang] AVISO WhatsApp: %s (continuando sem WhatsApp)\n", err)
+			waClient = nil
+		}
+		if waClient != nil {
+			defer waClient.Desconectar()
+		}
+	}
+
 	// Server
 	srv := servidor.Novo(program, db, porta)
+	srv.WA = waClient
 	fmt.Printf("\n[flang] %s rodando em http://localhost:%s\n\n", program.System.Name, porta)
 	return srv.Iniciar()
 }
@@ -159,5 +174,8 @@ func Verificar(arquivo string) error {
 	fmt.Printf("  telas:    %d\n", len(program.Screens))
 	fmt.Printf("  eventos:  %d\n", len(program.Events))
 	fmt.Printf("  regras:   %d\n", len(program.Rules))
+	if program.WhatsApp != nil && program.WhatsApp.Enabled {
+		fmt.Printf("  whatsapp: ativado (%d notificações)\n", len(program.Notifiers))
+	}
 	return nil
 }

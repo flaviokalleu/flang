@@ -1,0 +1,80 @@
+sistema restaurante
+
+tema
+  cor primaria "#6366f1"
+  cor secundaria "#8b5cf6"
+  cor destaque "#f59e0b"
+
+dados
+
+  prato
+    nome: texto obrigatorio
+    preco: dinheiro
+    categoria: texto
+    status: status
+
+  cliente
+    nome: texto obrigatorio
+    telefone: telefone obrigatorio
+    email: email
+
+  pedido
+    cliente: texto obrigatorio
+    telefone: telefone obrigatorio
+    prato: texto obrigatorio
+    quantidade: numero
+    valor: dinheiro
+    status: status
+
+telas
+
+  tela cardapio
+    titulo "Cardápio"
+    lista prato
+      mostrar nome
+      mostrar preco
+      mostrar status
+    botao azul
+      texto "Novo Prato"
+
+  tela clientes
+    titulo "Clientes"
+    lista cliente
+      mostrar nome
+      mostrar telefone
+      mostrar email
+    botao verde
+      texto "Novo Cliente"
+
+  tela pedidos
+    titulo "Pedidos"
+    lista pedido
+      mostrar cliente
+      mostrar prato
+      mostrar valor
+      mostrar status
+    botao azul
+      texto "Novo Pedido"
+
+eventos
+
+  quando clicar "Novo Prato"
+    criar prato
+
+  quando clicar "Novo Cliente"
+    criar cliente
+
+  quando clicar "Novo Pedido"
+    criar pedido
+
+integracoes
+
+  whatsapp
+
+    quando criar pedido
+      enviar mensagem para telefone
+        texto "Olá {cliente}! Seu pedido de {prato} foi recebido! Valor: R${valor}"
+
+    quando atualizar pedido
+      enviar mensagem para telefone
+        texto "Atualização do seu pedido: status agora é {status}"

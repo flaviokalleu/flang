@@ -68,8 +68,9 @@ func (p *Parser) Parse() (*ast.Program, error) {
 				return nil, err
 			}
 		case lexer.TokenIntegracoes:
-			p.advance()
-			p.skipWhitespace()
+			if err := p.parseIntegracoes(); err != nil {
+				return nil, err
+			}
 		default:
 			p.advance()
 		}
@@ -859,4 +860,170 @@ func (p *Parser) parseBanco() error {
 
 	p.program.Database = db
 	return nil
+}
+
+// parseIntegracoes parses the integrations block (whatsapp, etc).
+func (p *Parser) parseIntegracoes() error {
+	p.advance() // consume 'integracoes'
+	p.skipWhitespace()
+
+	for !p.isAtEnd() && !p.isBlockKeyword() {
+		tok := p.current()
+
+		if tok.Type == lexer.TokenNewline || tok.Type == lexer.TokenIndent {
+			p.advance()
+			continue
+		}
+
+		if tok.Type == lexer.TokenWhatsapp {
+			if err := p.parseWhatsApp(); err != nil {
+				return err
+			}
+			continue
+		}
+
+		p.advance()
+	}
+	return nil
+}
+
+// parseWhatsApp parses the whatsapp sub-block inside integracoes.
+// whatsapp
+//   quando criar pedido
+//     enviar mensagem para cliente.telefone
+//       texto "Seu pedido foi recebido!"
+func (p *Parser) parseWhatsApp() error {
+	p.advance() // consume 'whatsapp'
+	p.skipWhitespace()
+
+	// Enable WhatsApp
+	if p.program.WhatsApp == nil {
+		p.program.WhatsApp = &ast.WhatsAppConfig{Enabled: true, DBPath: "whatsapp.db"}
+	}
+
+	for !p.isAtEnd() && !p.isBlockKeyword() {
+		tok := p.current()
+
+		if tok.Type == lexer.TokenNewline || tok.Type == lexer.TokenIndent {
+			p.advance()
+			continue
+		}
+
+		// quando <trigger> <model>
+		if tok.Type == lexer.TokenQuando {
+			notif, err := p.parseNotifier("whatsapp")
+			if err != nil {
+				return err
+			}
+			if notif != nil {
+				p.program.Notifiers = append(p.program.Notifiers, notif)
+			}
+			continue
+		}
+
+		// Exit if we hit another integration section
+		if tok.Type == lexer.TokenWhatsapp {
+			break
+		}
+
+		p.advance()
+	}
+
+	return nil
+}
+
+// parseNotifier parses a notification trigger.
+// quando criar pedido
+//   enviar mensagem para cliente.telefone
+//     texto "Mensagem aqui"
+func (p *Parser) parseNotifier(channel string) (*ast.Notifier, error) {
+	p.advance() // consume 'quando'
+	p.skipIndent()
+
+	notif := &ast.Notifier{Channel: channel}
+
+	// trigger: criar, atualizar, deletar, or field condition
+	if !p.isAtEnd() && p.current().Type != lexer.TokenNewline {
+		triggerTok := p.advance()
+		notif.Trigger = triggerTok.Value
+	}
+	p.skipIndent()
+
+	// model name or field condition
+	if !p.isAtEnd() && p.current().Type != lexer.TokenNewline {
+		notif.Model = p.advance().Value
+	}
+
+	// Optional condition: igual "value"
+	p.skipIndent()
+	if !p.isAtEnd() && p.current().Type != lexer.TokenNewline {
+		if p.current().Type == lexer.TokenIgual || p.current().Value == "igual" || p.current().Value == "equals" {
+			p.advance() // skip 'igual'
+			p.skipIndent()
+			// The model was actually the field, trigger was condition context
+			notif.Field = notif.Model
+			notif.Model = ""
+			if p.current().Type == lexer.TokenString {
+				notif.Value = p.advance().Value
+			} else if !p.isAtEnd() && p.current().Type != lexer.TokenNewline {
+				notif.Value = p.advance().Value
+			}
+		}
+	}
+
+	p.skipWhitespace()
+
+	// Parse body lines: enviar mensagem para <dest> / texto "..."
+	for !p.isAtEnd() && !p.isBlockKeyword() {
+		tok := p.current()
+
+		if tok.Type == lexer.TokenNewline || tok.Type == lexer.TokenIndent {
+			p.advance()
+			continue
+		}
+
+		// Stop at next 'quando'
+		if tok.Type == lexer.TokenQuando {
+			break
+		}
+
+		switch tok.Value {
+		case "enviar", "send":
+			p.advance()
+			p.skipIndent()
+			// skip 'mensagem' / 'message'
+			if p.current().Type == lexer.TokenMensagem {
+				p.advance()
+			}
+			p.skipIndent()
+			// skip 'para' / 'to'
+			if p.current().Value == "para" || p.current().Type == lexer.TokenPara {
+				p.advance()
+			}
+			p.skipIndent()
+			// destination
+			if !p.isAtEnd() && p.current().Type != lexer.TokenNewline {
+				notif.SendTo = p.advance().Value
+				// Check for dotted access like cliente.telefone
+				if p.current().Type == lexer.TokenDot {
+					p.advance()
+					if !p.isAtEnd() && p.current().Type != lexer.TokenNewline {
+						notif.SendTo += "." + p.advance().Value
+					}
+				}
+			}
+
+		case "texto", "text":
+			p.advance()
+			p.skipIndent()
+			if p.current().Type == lexer.TokenString {
+				notif.Message = p.advance().Value
+			}
+
+		default:
+			p.advance()
+		}
+	}
+
+	return notif, nil
 }

@@ -7,16 +7,40 @@ type Node interface {
 
 // Program is the root AST node representing a complete .fg file.
 type Program struct {
-	System   *System
-	Theme    *Theme
-	Database *DatabaseConfig
-	Imports  []*Import
-	Models   []*Model
-	Screens  []*Screen
-	Events   []*Event
-	Actions  []*Action
-	Rules    []*Rule
+	System    *System
+	Theme     *Theme
+	Database  *DatabaseConfig
+	WhatsApp  *WhatsAppConfig
+	Imports   []*Import
+	Models    []*Model
+	Screens   []*Screen
+	Events    []*Event
+	Actions   []*Action
+	Rules     []*Rule
+	Notifiers []*Notifier
 }
+
+// WhatsAppConfig holds WhatsApp connection settings.
+type WhatsAppConfig struct {
+	Enabled bool
+	DBPath  string // path to whatsmeow session store
+}
+
+func (w *WhatsAppConfig) NodeType() string { return "WhatsAppConfig" }
+
+// Notifier represents a notification trigger.
+// quando criar pedido → enviar mensagem para cliente.telefone texto "..."
+type Notifier struct {
+	Trigger  string // "criar", "atualizar", "deletar"
+	Model    string // model name
+	Field    string // condition field (e.g. "status")
+	Value    string // condition value (e.g. "pronto")
+	SendTo   string // destination field (e.g. "cliente.telefone" or phone number)
+	Message  string // message template
+	Channel  string // "whatsapp", "email", etc
+}
+
+func (n *Notifier) NodeType() string { return "Notifier" }
 
 // DatabaseConfig holds database connection settings.
 type DatabaseConfig struct {
