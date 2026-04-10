@@ -118,7 +118,11 @@ func (t Token) String() string {
 }
 
 var keywords = map[string]TokenType{
-	// Block keywords
+	// ==========================================
+	// PORTUGUÊS
+	// ==========================================
+
+	// Blocos
 	"sistema":     TokenSistema,
 	"dados":       TokenDados,
 	"telas":       TokenTelas,
@@ -132,18 +136,18 @@ var keywords = map[string]TokenType{
 	"importar": TokenImportar,
 	"de":       TokenDe,
 
-	// Screen keywords
-	"tela":        TokenTela,
-	"titulo":      TokenTitulo,
-	"lista":       TokenLista,
-	"mostrar":     TokenMostrar,
-	"botao":       TokenBotao,
-	"formulario":  TokenFormulario,
-	"entrada":     TokenEntrada,
-	"busca":       TokenBusca,
-	"dashboard":   TokenDashboard,
+	// Tela
+	"tela":       TokenTela,
+	"titulo":     TokenTitulo,
+	"lista":      TokenLista,
+	"mostrar":    TokenMostrar,
+	"botao":      TokenBotao,
+	"formulario": TokenFormulario,
+	"entrada":    TokenEntrada,
+	"busca":      TokenBusca,
+	"dashboard":  TokenDashboard,
 
-	// Type keywords
+	// Tipos
 	"texto":    TokenTexto,
 	"numero":   TokenNumero,
 	"data":     TokenData,
@@ -158,15 +162,15 @@ var keywords = map[string]TokenType{
 	"dinheiro": TokenDinheiro,
 	"senha":    TokenSenha,
 
-	// Event keywords
-	"quando":     TokenQuando,
-	"clicar":     TokenClicar,
-	"criar":      TokenCriar,
-	"atualizar":  TokenAtualizar,
-	"deletar":    TokenDeletar,
-	"enviar":     TokenEnviar,
+	// Eventos
+	"quando":    TokenQuando,
+	"clicar":    TokenClicar,
+	"criar":     TokenCriar,
+	"atualizar": TokenAtualizar,
+	"deletar":   TokenDeletar,
+	"enviar":    TokenEnviar,
 
-	// Logic
+	// Lógica
 	"se":       TokenSe,
 	"senao":    TokenSenao,
 	"igual":    TokenIgual,
@@ -182,19 +186,106 @@ var keywords = map[string]TokenType{
 	"mudar":    TokenMudar,
 	"para":     TokenPara,
 
-	// Relationships
+	// Relacionamentos
 	"pertence_a": TokenPertenceA,
 	"tem_muitos": TokenTemMuitos,
 
-	// Theme
+	// Tema
 	"cor":    TokenCor,
 	"icone":  TokenIcone,
 	"escuro": TokenEscuro,
 
-	// Modifiers
+	// Modificadores
 	"obrigatorio": TokenObrigatorio,
 	"unico":       TokenUnico,
 	"padrao":      TokenPadrao,
+
+	// ==========================================
+	// ENGLISH
+	// ==========================================
+
+	// Blocks
+	"system":       TokenSistema,
+	"models":       TokenDados,
+	"screens":      TokenTelas,
+	"actions":      TokenAcoes,
+	"events":       TokenEventos,
+	"integrations": TokenIntegracoes,
+	"theme":        TokenTema,
+	"logic":        TokenLogica,
+
+	// Import
+	"import": TokenImportar,
+	"from":   TokenDe,
+
+	// Screen
+	"screen": TokenTela,
+	"title":  TokenTitulo,
+	"list":   TokenLista,
+	"show":   TokenMostrar,
+	"button": TokenBotao,
+	"form":   TokenFormulario,
+	"input":  TokenEntrada,
+	"search": TokenBusca,
+
+	// Types
+	"text":     TokenTexto,
+	"number":   TokenNumero,
+	"date":     TokenData,
+	"boolean":  TokenBooleano,
+	"phone":    TokenTelefone,
+	"image":    TokenImagem,
+	"file":     TokenArquivo,
+	"money":    TokenDinheiro,
+	"password": TokenSenha,
+	"currency": TokenDinheiro,
+
+	// Events
+	"when":   TokenQuando,
+	"click":  TokenClicar,
+	"create": TokenCriar,
+	"update": TokenAtualizar,
+	"delete": TokenDeletar,
+	"send":   TokenEnviar,
+
+	// Logic
+	"if":       TokenSe,
+	"else":     TokenSenao,
+	"equals":   TokenIgual,
+	"equal":    TokenIgual,
+	"greater":  TokenMaior,
+	"less":     TokenMenor,
+	"and":      TokenE,
+	"or":       TokenOu,
+	"then":     TokenEntao,
+	"validate": TokenValidar,
+	"compute":  TokenCalcular,
+	"set":      TokenDefinir,
+	"return":   TokenRetornar,
+	"change":   TokenMudar,
+	"to":       TokenPara,
+
+	// Relationships
+	"belongs_to": TokenPertenceA,
+	"has_many":   TokenTemMuitos,
+
+	// Theme
+	"color": TokenCor,
+	"icon":  TokenIcone,
+	"dark":  TokenEscuro,
+
+	// Modifiers
+	"required": TokenObrigatorio,
+	"unique":   TokenUnico,
+	"default":  TokenPadrao,
+
+	// Color names (work in both languages)
+	"azul":     TokenIdentifier,
+	"verde":    TokenIdentifier,
+	"vermelho": TokenIdentifier,
+	"blue":     TokenIdentifier,
+	"green":    TokenIdentifier,
+	"red":      TokenIdentifier,
 }
 
 // Lexer tokenizes Flang source code.

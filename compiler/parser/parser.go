@@ -601,11 +601,11 @@ func (p *Parser) parseTema() error {
 				if p.current().Type == lexer.TokenString {
 					val := p.advance().Value
 					switch which {
-					case "primaria":
+					case "primaria", "primary":
 						theme.Primary = val
-					case "secundaria":
+					case "secundaria", "secondary":
 						theme.Secondary = val
-					case "destaque":
+					case "destaque", "accent":
 						theme.Accent = val
 					case "sidebar":
 						theme.Sidebar = val

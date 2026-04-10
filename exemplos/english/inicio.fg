@@ -1,0 +1,75 @@
+system store
+
+theme
+  color primary "#3b82f6"
+  color secondary "#8b5cf6"
+  color accent "#f59e0b"
+  dark
+
+models
+
+  product
+    name: text required
+    price: money required
+    category: text
+    status: status
+
+  customer
+    name: text required
+    email: email unique
+    phone: phone
+
+  order
+    product: text required
+    customer: text
+    quantity: number required
+    total: money
+    status: status
+
+screens
+
+  screen products
+    title "Products"
+    list product
+      show name
+      show price
+      show category
+      show status
+    button blue
+      text "New Product"
+
+  screen customers
+    title "Customers"
+    list customer
+      show name
+      show email
+      show phone
+    button green
+      text "New Customer"
+
+  screen orders
+    title "Orders"
+    list order
+      show product
+      show customer
+      show quantity
+      show total
+      show status
+    button blue
+      text "New Order"
+
+events
+
+  when click "New Product"
+    create product
+
+  when click "New Customer"
+    create customer
+
+  when click "New Order"
+    create order
+
+logic
+
+  validate email required unique
+  validate price greater 0

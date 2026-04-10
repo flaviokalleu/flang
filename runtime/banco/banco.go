@@ -39,13 +39,18 @@ func Abrir(path string, models []*ast.Model) (*Banco, error) {
 	return b, nil
 }
 
+// q quotes a SQL identifier to avoid conflicts with reserved words.
+func q(name string) string {
+	return `"` + name + `"`
+}
+
 func (b *Banco) criarTabela(model *ast.Model) error {
 	name := strings.ToLower(model.Name)
 
 	var cols []string
-	cols = append(cols, "id INTEGER PRIMARY KEY AUTOINCREMENT")
+	cols = append(cols, q("id")+" INTEGER PRIMARY KEY AUTOINCREMENT")
 	for _, f := range model.Fields {
-		col := fmt.Sprintf("%s %s", strings.ToLower(f.Name), f.Type.SQLType())
+		col := fmt.Sprintf("%s %s", q(strings.ToLower(f.Name)), f.Type.SQLType())
 		if f.Required {
 			col += " NOT NULL"
 		}
@@ -55,16 +60,15 @@ func (b *Banco) criarTabela(model *ast.Model) error {
 		if f.Default != "" {
 			col += fmt.Sprintf(" DEFAULT '%s'", f.Default)
 		}
-		// Foreign key reference (pertence_a)
 		if f.Reference != "" {
-			col += fmt.Sprintf(" REFERENCES %s(id)", strings.ToLower(f.Reference))
+			col += fmt.Sprintf(" REFERENCES %s(%s)", q(strings.ToLower(f.Reference)), q("id"))
 		}
 		cols = append(cols, col)
 	}
-	cols = append(cols, "criado_em DATETIME DEFAULT CURRENT_TIMESTAMP")
-	cols = append(cols, "atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP")
+	cols = append(cols, q("criado_em")+" DATETIME DEFAULT CURRENT_TIMESTAMP")
+	cols = append(cols, q("atualizado_em")+" DATETIME DEFAULT CURRENT_TIMESTAMP")
 
-	query := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (\n  %s\n)", name, strings.Join(cols, ",\n  "))
+	query := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (\n  %s\n)", q(name), strings.Join(cols, ",\n  "))
 	_, err := b.DB.Exec(query)
 	return err
 }
@@ -122,7 +126,7 @@ func (b *Banco) Listar(modelo string) ([]map[string]any, error) {
 		return nil, fmt.Errorf("modelo '%s' não encontrado", modelo)
 	}
 
-	rows, err := b.DB.Query(fmt.Sprintf("SELECT * FROM %s ORDER BY id DESC", modelo))
+	rows, err := b.DB.Query(fmt.Sprintf("SELECT * FROM %s ORDER BY %s DESC", q(modelo), q("id")))
 	if err != nil {
 		return nil, err
 	}
@@ -157,7 +161,7 @@ func (b *Banco) Buscar(modelo string, id int64) (map[string]any, error) {
 		return nil, fmt.Errorf("modelo '%s' não encontrado", modelo)
 	}
 
-	rows, err := b.DB.Query(fmt.Sprintf("SELECT * FROM %s WHERE id = ?", modelo), id)
+	rows, err := b.DB.Query(fmt.Sprintf("SELECT * FROM %s WHERE %s = ?", q(modelo), q("id")), id)
 	if err != nil {
 		return nil, err
 	}
@@ -208,7 +212,7 @@ func (b *Banco) Criar(modelo string, dados json.RawMessage) (map[string]any, err
 	for _, f := range model.Fields {
 		fname := strings.ToLower(f.Name)
 		if v, exists := input[fname]; exists {
-			cols = append(cols, fname)
+			cols = append(cols, q(fname))
 			placeholders = append(placeholders, "?")
 			vals = append(vals, v)
 		}
@@ -219,7 +223,7 @@ func (b *Banco) Criar(modelo string, dados json.RawMessage) (map[string]any, err
 	}
 
 	query := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)",
-		modelo, strings.Join(cols, ", "), strings.Join(placeholders, ", "))
+		q(modelo), strings.Join(cols, ", "), strings.Join(placeholders, ", "))
 
 	result, err := b.DB.Exec(query, vals...)
 	if err != nil {
@@ -248,7 +252,7 @@ func (b *Banco) Atualizar(modelo string, id int64, dados json.RawMessage) (map[s
 	for _, f := range model.Fields {
 		fname := strings.ToLower(f.Name)
 		if v, exists := input[fname]; exists {
-			sets = append(sets, fname+" = ?")
+			sets = append(sets, q(fname)+" = ?")
 			vals = append(vals, v)
 		}
 	}
@@ -257,10 +261,10 @@ func (b *Banco) Atualizar(modelo string, id int64, dados json.RawMessage) (map[s
 		return nil, fmt.Errorf("nenhum campo para atualizar")
 	}
 
-	sets = append(sets, "atualizado_em = CURRENT_TIMESTAMP")
+	sets = append(sets, q("atualizado_em")+" = CURRENT_TIMESTAMP")
 	vals = append(vals, id)
 
-	query := fmt.Sprintf("UPDATE %s SET %s WHERE id = ?", modelo, strings.Join(sets, ", "))
+	query := fmt.Sprintf("UPDATE %s SET %s WHERE %s = ?", q(modelo), strings.Join(sets, ", "), q("id"))
 	_, err := b.DB.Exec(query, vals...)
 	if err != nil {
 		return nil, err
@@ -274,7 +278,7 @@ func (b *Banco) Deletar(modelo string, id int64) error {
 	if _, ok := b.Models[modelo]; !ok {
 		return fmt.Errorf("modelo '%s' não encontrado", modelo)
 	}
-	_, err := b.DB.Exec(fmt.Sprintf("DELETE FROM %s WHERE id = ?", modelo), id)
+	_, err := b.DB.Exec(fmt.Sprintf("DELETE FROM %s WHERE %s = ?", q(modelo), q("id")), id)
 	return err
 }
 
