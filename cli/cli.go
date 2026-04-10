@@ -9,9 +9,10 @@ import (
 	"strings"
 
 	"github.com/flavio/flang/runtime"
+	"github.com/flavio/flang/runtime/ide"
 )
 
-const version = "0.5.0"
+const version = "0.5.1"
 
 const banner = `
   ███████╗██╗      █████╗ ███╗   ██╗ ██████╗
@@ -88,6 +89,19 @@ func Run(args []string) {
 		}
 		cmdBuild(args[2], output)
 
+	case "ide":
+		dir := "."
+		porta := "3000"
+		if len(args) >= 3 {
+			dir = args[2]
+		}
+		for i, a := range args {
+			if (a == "--port" || a == "-p") && i+1 < len(args) {
+				porta = args[i+1]
+			}
+		}
+		cmdIDE(dir, porta)
+
 	case "help":
 		printUsage()
 
@@ -121,6 +135,7 @@ Comandos:
   new <nome>                Cria projeto plano (tudo num arquivo so)
   init <nome>               Cria projeto organizado (pastas por responsabilidade)
   build <arquivo.fg> [-o nome]  Compila em executavel standalone
+  ide [diretorio] [-p porta]  Abre a IDE web do Flang
   docker                    Gera Dockerfile para o projeto atual
   version                   Mostra a versao
   help                      Mostra esta ajuda
@@ -639,4 +654,25 @@ func getFlangModPath() string {
 		gopath = filepath.Join(home, "go")
 	}
 	return filepath.Join(gopath, "src", "github.com", "flavio", "flang")
+}
+
+func cmdIDE(dir string, porta string) {
+	ideServer := ide.Novo(dir, porta)
+
+	// Open browser
+	var cmd *exec.Cmd
+	switch goruntime.GOOS {
+	case "windows":
+		cmd = exec.Command("cmd", "/c", "start", fmt.Sprintf("http://localhost:%s", porta))
+	case "darwin":
+		cmd = exec.Command("open", fmt.Sprintf("http://localhost:%s", porta))
+	default:
+		cmd = exec.Command("xdg-open", fmt.Sprintf("http://localhost:%s", porta))
+	}
+	cmd.Start()
+
+	if err := ideServer.Iniciar(); err != nil {
+		fmt.Printf("[flang] ERRO IDE: %s\n", err)
+		os.Exit(1)
+	}
 }
