@@ -289,7 +289,7 @@ func (s *Servidor) renderTopbar() string {
 	// Auth button
 	if s.Auth != nil {
 		b.WriteString(`<div id="auth-area" class="flex items-center gap-2">`)
-		b.WriteString(`<button class="bg-primary hover:bg-primary/80 text-white px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2" id="btn-login" onclick="mostrarLogin()"><span class="w-4 h-4">` + svgIcon("user") + `</span><span>Entrar</span></button>`)
+		b.WriteString(`<button class="bg-primary hover:bg-primary/80 text-white px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2" id="btn-login" onclick="mostrarLogin()"><span class="w-4 h-4 inline-flex">` + svgIcon("user") + `</span><span>Entrar</span></button>`)
 		b.WriteString(`<span id="user-info" class="hidden text-sm text-gray-500 dark:text-gray-400"></span>`)
 		b.WriteString(`<button class="hidden text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 px-3 py-2 rounded-lg text-sm transition-all" id="btn-logout" onclick="sair()">Sair</button>`)
 		b.WriteString(`</div>`)
@@ -322,7 +322,7 @@ func (s *Servidor) renderDashboard(theme *ast.Theme) string {
 		icon := modelIcon(name)
 		b.WriteString(fmt.Sprintf(`<div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-5 hover:border-primary/50 transition-all cursor-pointer group" onclick="irParaNav('%s')">`, name))
 		b.WriteString(`<div class="flex items-center justify-between mb-3">`)
-		b.WriteString(`<div class="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary"><span class="w-5 h-5">` + svgIcon(icon) + `</span></div>`)
+		b.WriteString(`<div class="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary"><span class="w-5 h-5 inline-flex">` + svgIcon(icon) + `</span></div>`)
 		b.WriteString(fmt.Sprintf(`<span class="text-2xl font-bold" id="stat-%s">0</span>`, name))
 		b.WriteString(`</div>`)
 		b.WriteString(`<p class="text-gray-500 dark:text-gray-400 text-sm font-medium">` + html.EscapeString(cap(model.Name)) + `</p>`)
@@ -527,7 +527,7 @@ func (s *Servidor) renderScreenComponent(b *strings.Builder, comp *ast.Component
 				break
 			}
 		}
-		b.WriteString(`<button type="submit" class="bg-primary hover:bg-primary/80 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center gap-2"><span class="w-4 h-4">` + svgIcon("check") + `</span><span>Salvar</span></button>`)
+		b.WriteString(`<button type="submit" class="bg-primary hover:bg-primary/80 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center gap-2"><span class="w-4 h-4 inline-flex">` + svgIcon("check") + `</span><span>Salvar</span></button>`)
 		b.WriteString(`</form></div>`)
 	default:
 		for _, child := range comp.Children {
@@ -602,7 +602,7 @@ func (s *Servidor) renderModelSection(b *strings.Builder, model *ast.Model, them
 	b.WriteString(`<div class="flex items-center gap-2">`)
 	b.WriteString(fmt.Sprintf(`<button class="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 px-3 py-2 rounded-lg text-sm transition-all" onclick="exportar('%s','csv')"><span class="w-4 h-4 inline-block align-middle mr-1">%s</span>CSV</button>`, name, svgIcon("file")))
 	b.WriteString(fmt.Sprintf(`<button class="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 px-3 py-2 rounded-lg text-sm transition-all" onclick="exportar('%s','json')"><span class="w-4 h-4 inline-block align-middle mr-1">%s</span>JSON</button>`, name, svgIcon("file")))
-	b.WriteString(fmt.Sprintf(`<button class="bg-primary hover:bg-primary/80 text-white px-4 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2" onclick="abrirForm('%s')"><span class="w-4 h-4">%s</span><span>Novo %s</span></button>`, name, svgIcon("plus"), html.EscapeString(capName)))
+	b.WriteString(fmt.Sprintf(`<button class="bg-primary hover:bg-primary/80 text-white px-4 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2" onclick="abrirForm('%s')"><span class="w-4 h-4 inline-flex">%s</span><span>Novo %s</span></button>`, name, svgIcon("plus"), html.EscapeString(capName)))
 	b.WriteString(`</div></div>`)
 
 	// Table
@@ -635,7 +635,7 @@ func (s *Servidor) renderModelModal(b *strings.Builder, model *ast.Model) {
 	b.WriteString(`<div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto shadow-2xl">`)
 	// Header
 	b.WriteString(fmt.Sprintf(`<div class="flex items-center justify-between p-5 border-b border-gray-200 dark:border-gray-800"><h2 class="text-lg font-semibold" id="titulo-form-%s">Novo %s</h2>`, name, capName))
-	b.WriteString(fmt.Sprintf(`<button onclick="fecharForm('%s')" class="text-gray-400 hover:text-gray-900 dark:hover:text-white p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-all"><span class="w-5 h-5">`, name) + svgIcon("x") + `</span></button></div>`)
+	b.WriteString(fmt.Sprintf(`<button onclick="fecharForm('%s')" class="text-gray-400 hover:text-gray-900 dark:hover:text-white p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-all"><span class="w-5 h-5 inline-flex">`, name) + svgIcon("x") + `</span></button></div>`)
 	// Form
 	b.WriteString(fmt.Sprintf(`<form onsubmit="salvar('%s',event)" class="p-5 space-y-4"><input type="hidden" id="%s-id">`, name, name))
 
@@ -644,7 +644,7 @@ func (s *Servidor) renderModelModal(b *strings.Builder, model *ast.Model) {
 	}
 
 	b.WriteString(`<div class="flex gap-3 pt-4 border-t border-gray-200 dark:border-gray-800">`)
-	b.WriteString(`<button type="submit" class="flex-1 bg-primary hover:bg-primary/80 text-white py-2.5 rounded-xl font-medium transition-all flex items-center justify-center gap-2"><span class="w-4 h-4">` + svgIcon("check") + `</span>Salvar</button>`)
+	b.WriteString(`<button type="submit" class="flex-1 bg-primary hover:bg-primary/80 text-white py-2.5 rounded-xl font-medium transition-all flex items-center justify-center gap-2"><span class="w-4 h-4 inline-flex">` + svgIcon("check") + `</span>Salvar</button>`)
 	b.WriteString(fmt.Sprintf(`<button type="button" onclick="fecharForm('%s')" class="px-6 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-all text-sm">Cancelar</button>`, name))
 	b.WriteString(`</div></form></div></div>`)
 }
@@ -1020,8 +1020,8 @@ function renderTableRows(tb,m,items){
       h+='<td class="px-4 py-3 text-sm">'+fmtCell(item[c.n],c.t)+'</td>';
     });
     h+='<td class="px-4 py-3 text-right whitespace-nowrap">';
-    h+='<button class="w-8 h-8 inline-flex items-center justify-center rounded-lg text-primary hover:bg-primary/10 transition-all" onclick="editar(\''+m+'\','+item.id+')"><span class="w-4 h-4">'+ICO_E+'</span></button>';
-    h+='<button class="w-8 h-8 inline-flex items-center justify-center rounded-lg text-red-500 hover:bg-red-500/10 transition-all" onclick="excluir(\''+m+'\','+item.id+')"><span class="w-4 h-4">'+ICO_D+'</span></button>';
+    h+='<button class="w-8 h-8 inline-flex items-center justify-center rounded-lg text-primary hover:bg-primary/10 transition-all" onclick="editar(\''+m+'\','+item.id+')"><span class="w-4 h-4 inline-flex">'+ICO_E+'</span></button>';
+    h+='<button class="w-8 h-8 inline-flex items-center justify-center rounded-lg text-red-500 hover:bg-red-500/10 transition-all" onclick="excluir(\''+m+'\','+item.id+')"><span class="w-4 h-4 inline-flex">'+ICO_D+'</span></button>';
     h+='</td>';
     tr.innerHTML=h;tb.appendChild(tr);
   });
@@ -1607,32 +1607,34 @@ func enumJSArray(vals []string) string {
 // ============================================================
 
 func svgIcon(name string) string {
+	// All SVGs use w-full h-full so they inherit size from parent container
+	const svgAttrs = `viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-full h-full"`
 	icons := map[string]string{
-		"zap":      `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>`,
-		"layout":   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>`,
-		"menu":     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="18" x2="20" y2="18"/></svg>`,
-		"search":   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`,
-		"plus":     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`,
-		"edit":     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`,
-		"trash":    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`,
-		"x":        `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`,
-		"check":    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`,
-		"moon":     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`,
-		"chevleft": `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>`,
-		"activity": `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>`,
-		"info":     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`,
-		"inbox":    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>`,
-		"box":      `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>`,
-		"users":    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
-		"user":     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
-		"grid":     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>`,
-		"list":     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>`,
-		"clip":     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>`,
-		"dollar":   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>`,
-		"utensils": `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3zm0 0v7"/></svg>`,
-		"tag":      `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>`,
-		"file":     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`,
-		"settings": `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1.08 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`,
+		"zap":      `<svg ` + svgAttrs + `><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>`,
+		"layout":   `<svg ` + svgAttrs + `><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>`,
+		"menu":     `<svg ` + svgAttrs + `><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="18" x2="20" y2="18"/></svg>`,
+		"search":   `<svg ` + svgAttrs + `><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`,
+		"plus":     `<svg ` + svgAttrs + `><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`,
+		"edit":     `<svg ` + svgAttrs + `><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`,
+		"trash":    `<svg ` + svgAttrs + `><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`,
+		"x":        `<svg ` + svgAttrs + `><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`,
+		"check":    `<svg ` + svgAttrs + `><polyline points="20 6 9 17 4 12"/></svg>`,
+		"moon":     `<svg ` + svgAttrs + `><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`,
+		"chevleft": `<svg ` + svgAttrs + `><polyline points="15 18 9 12 15 6"/></svg>`,
+		"activity": `<svg ` + svgAttrs + `><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>`,
+		"info":     `<svg ` + svgAttrs + `><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`,
+		"inbox":    `<svg ` + svgAttrs + `><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>`,
+		"box":      `<svg ` + svgAttrs + `><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>`,
+		"users":    `<svg ` + svgAttrs + `><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
+		"user":     `<svg ` + svgAttrs + `><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
+		"grid":     `<svg ` + svgAttrs + `><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>`,
+		"list":     `<svg ` + svgAttrs + `><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>`,
+		"clip":     `<svg ` + svgAttrs + `><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>`,
+		"dollar":   `<svg ` + svgAttrs + `><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>`,
+		"utensils": `<svg ` + svgAttrs + `><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3zm0 0v7"/></svg>`,
+		"tag":      `<svg ` + svgAttrs + `><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>`,
+		"file":     `<svg ` + svgAttrs + `><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`,
+		"settings": `<svg ` + svgAttrs + `><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1.08 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`,
 	}
 	if svg, ok := icons[name]; ok {
 		return svg
