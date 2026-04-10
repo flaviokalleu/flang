@@ -1,7 +1,7 @@
 @echo off
 REM =============================================================================
 REM  Flang Programming Language - Script de Construcao do Instalador
-REM  Versao 0.2.0
+REM  Versao 0.5.0
 REM
 REM  O que este script faz:
 REM    1. Compila o flang.exe para Windows amd64
@@ -24,7 +24,7 @@ set "COR_INFO=[96m"
 set "COR_RESET=[0m"
 
 REM --- Variaveis de configuracao ---
-set "VERSAO=0.4.0"
+set "VERSAO=0.5.0"
 set "RAIZ=%~dp0..\.."
 set "EXE_SAIDA=%RAIZ%\flang.exe"
 set "PASTA_INSTALLER=%~dp0"

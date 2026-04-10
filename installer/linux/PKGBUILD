@@ -16,7 +16,7 @@
 
 # Informacoes do pacote / Package information
 pkgname=flang
-pkgver=0.2.0
+pkgver=0.5.0
 pkgrel=1
 pkgdesc="Linguagem de programacao declarativa full-stack (Portugues/English)"
 arch=('x86_64' 'aarch64')
@@ -136,7 +136,7 @@ package() {
     local mandir="${pkgdir}/usr/share/man/man1"
     install -dm755 "$mandir"
     cat > "${mandir}/flang.1" << 'EOF'
-.TH FLANG 1 "2026" "Flang v0.2.0" "Flang Manual"
+.TH FLANG 1 "2026" "Flang v0.5.0" "Flang Manual"
 .SH NAME
 flang \- declarative full-stack programming language
 .SH SYNOPSIS

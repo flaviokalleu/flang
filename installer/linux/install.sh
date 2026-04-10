@@ -27,7 +27,7 @@ RESET='\033[0m'
 # ---------------------------------------------------------------------------
 # Versao do Flang / Flang version
 # ---------------------------------------------------------------------------
-FLANG_VERSION="${FLANG_VERSION:-0.2.0}"
+FLANG_VERSION="${FLANG_VERSION:-0.5.0}"
 FLANG_REPO="https://github.com/flaviokalleu/flang"
 RELEASES_URL="${FLANG_REPO}/releases/download/v${FLANG_VERSION}"
 

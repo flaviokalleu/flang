@@ -17,7 +17,7 @@ var payload embed.FS
 
 const (
 	installDir = `C:\Flang`
-	version    = "0.4.0"
+	version    = "0.5.0"
 )
 
 func main() {
@@ -27,6 +27,15 @@ func main() {
 	if len(os.Args) > 1 && (os.Args[1] == "--uninstall" || os.Args[1] == "/uninstall") {
 		uninstall()
 		return
+	}
+
+	// Clean previous installation
+	if _, err := os.Stat(installDir); err == nil {
+		fmt.Println("[0/6] Removendo versão anterior...")
+		os.RemoveAll(filepath.Join(installDir, "bin"))
+		os.RemoveAll(filepath.Join(installDir, "exemplos"))
+		os.RemoveAll(filepath.Join(installDir, "docs"))
+		fmt.Println("   OK")
 	}
 
 	fmt.Println("[1/6] Criando diretórios...")

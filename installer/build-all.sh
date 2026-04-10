@@ -22,7 +22,7 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 # Configuracao / Configuration
 # ---------------------------------------------------------------------------
-FLANG_VERSION="${FLANG_VERSION:-0.2.0}"
+FLANG_VERSION="${FLANG_VERSION:-0.5.0}"
 BINARY_NAME="flang"
 
 # Diretorio raiz do projeto / Project root directory
