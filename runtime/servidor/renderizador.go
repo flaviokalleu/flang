@@ -75,6 +75,25 @@ func (s *Servidor) renderHTML() string {
 	}
 	b.WriteString(`</div>`)
 
+	// Bar chart - records per model
+	b.WriteString(`<div class="card glass-card chart-card"><div class="card-head">` + svgIcon("activity") + `<h3>Registros por Modelo</h3></div>`)
+	b.WriteString(`<div class="chart-wrap" id="chart-models"></div></div>`)
+
+	// Status charts for models with status fields
+	hasStatus := false
+	for _, model := range s.Program.Models {
+		for _, f := range model.Fields {
+			if f.Type == ast.FieldStatus {
+				hasStatus = true
+				break
+			}
+		}
+	}
+	if hasStatus {
+		b.WriteString(`<div class="card glass-card chart-card"><div class="card-head">` + svgIcon("tag") + `<h3>Status por Modelo</h3></div>`)
+		b.WriteString(`<div class="chart-wrap" id="chart-status"></div></div>`)
+	}
+
 	// Activity feed
 	b.WriteString(`<div class="dash-grid">`)
 	b.WriteString(`<div class="card glass-card"><div class="card-head">` + svgIcon("activity") + `<h3>Atividade Recente</h3></div>`)
@@ -119,8 +138,11 @@ func (s *Servidor) renderSecaoV2(b *strings.Builder, model *ast.Model) {
 	b.WriteString(`<div class="sec-left">`)
 	b.WriteString(fmt.Sprintf(`<div class="sec-search glass-input"><input type="text" placeholder="Buscar em %s..." oninput="filtrar('%s',this.value)">`, capName, name))
 	b.WriteString(svgIcon("search") + `</div></div>`)
-	b.WriteString(fmt.Sprintf(`<button class="btn btn-glow" onclick="abrirForm('%s')">`, name))
-	b.WriteString(svgIcon("plus") + `<span>Novo ` + capName + `</span></button></div>`)
+	b.WriteString(`<div class="sec-actions">`)
+	b.WriteString(fmt.Sprintf(`<button class="btn btn-ghost btn-sm" onclick="exportar('%s','csv')" title="Exportar CSV">%s<span>CSV</span></button>`, name, svgIcon("file")))
+	b.WriteString(fmt.Sprintf(`<button class="btn btn-ghost btn-sm" onclick="exportar('%s','json')" title="Exportar JSON">%s<span>JSON</span></button>`, name, svgIcon("file")))
+	b.WriteString(fmt.Sprintf(`<button class="btn btn-glow" onclick="abrirForm('%s')">%s<span>Novo %s</span></button>`, name, svgIcon("plus"), capName))
+	b.WriteString(`</div></div>`)
 
 	// Table card
 	b.WriteString(`<div class="card glass-card table-wrap">`)
@@ -142,22 +164,43 @@ func (s *Servidor) renderSecaoV2(b *strings.Builder, model *ast.Model) {
 
 	for _, f := range model.Fields {
 		fname := lo(f.Name)
-		inputType := tipoInput(f.Type)
 		req := ""
 		if f.Required {
 			req = " required"
 		}
-		extra := ""
-		if f.Type == ast.FieldNumero || f.Type == ast.FieldDinheiro {
-			extra = ` step="any"`
-		}
-		if f.Type == ast.FieldSenha {
-			inputType = "password"
-		}
 		b.WriteString(`<div class="field">`)
 		b.WriteString(fmt.Sprintf(`<label for="%s-%s">%s</label>`, name, fname, cap(f.Name)))
-		b.WriteString(fmt.Sprintf(`<input type="%s" id="%s-%s" placeholder="%s"%s%s>`,
-			inputType, name, fname, cap(f.Name), extra, req))
+
+		if f.Reference != "" {
+			// Foreign key: render a <select> dropdown
+			refModel := lo(f.Reference)
+			b.WriteString(fmt.Sprintf(`<select id="%s-%s" data-ref="%s"%s>`,
+				name, fname, refModel, req))
+			b.WriteString(`<option value="">Selecione...</option>`)
+			b.WriteString(`</select>`)
+		} else if f.Type == ast.FieldTextoLongo {
+			// Long text: render a <textarea>
+			b.WriteString(fmt.Sprintf(`<textarea id="%s-%s" placeholder="%s" rows="4"%s></textarea>`,
+				name, fname, cap(f.Name), req))
+		} else if f.Type == ast.FieldImagem || f.Type == ast.FieldUpload || f.Type == ast.FieldArquivo {
+			// File upload fields
+			b.WriteString(fmt.Sprintf(`<input type="hidden" id="%s-%s">`, name, fname))
+			b.WriteString(fmt.Sprintf(`<input type="file" id="%s-%s-file" onchange="uploadFile('%s','%s',this)">`,
+				name, fname, name, fname))
+			b.WriteString(fmt.Sprintf(`<div id="%s-%s-preview" class="upload-preview"></div>`,
+				name, fname))
+		} else {
+			inputType := tipoInput(f.Type)
+			extra := ""
+			if f.Type == ast.FieldNumero || f.Type == ast.FieldDinheiro {
+				extra = ` step="any"`
+			}
+			if f.Type == ast.FieldSenha {
+				inputType = "password"
+			}
+			b.WriteString(fmt.Sprintf(`<input type="%s" id="%s-%s" placeholder="%s"%s%s>`,
+				inputType, name, fname, cap(f.Name), extra, req))
+		}
 		b.WriteString(`</div>`)
 	}
 
@@ -190,11 +233,19 @@ func (s *Servidor) jsV2() string {
 				ft = "s"
 			case ast.FieldEmail:
 				ft = "e"
+			case ast.FieldTextoLongo:
+				ft = "tl"
+			case ast.FieldImagem, ast.FieldUpload, ast.FieldArquivo:
+				ft = "f"
+			}
+			ref := ""
+			if f.Reference != "" {
+				ref = fmt.Sprintf(",r:'%s'", lo(f.Reference))
 			}
 			if i > 0 {
 				b.WriteString(",")
 			}
-			b.WriteString(fmt.Sprintf("{n:'%s',t:'%s'}", lo(f.Name), ft))
+			b.WriteString(fmt.Sprintf("{n:'%s',t:'%s'%s}", lo(f.Name), ft, ref))
 		}
 		b.WriteString("],\n")
 	}
@@ -226,7 +277,7 @@ function toggleDark(){document.body.classList.toggle('dark');}
 
 function toast(msg,t){var e=$('toast');e.textContent=msg;e.className='toast show '+(t||'ok');setTimeout(function(){e.className='toast';},3000);}
 
-function abrirForm(m){$('modal-'+m).classList.add('show');$(m+'-id').value='';$('modal-'+m).querySelector('form').reset();$('titulo-form-'+m).textContent='Novo '+m.charAt(0).toUpperCase()+m.slice(1);}
+function abrirForm(m){$('modal-'+m).classList.add('show');$(m+'-id').value='';$('modal-'+m).querySelector('form').reset();$('titulo-form-'+m).textContent='Novo '+m.charAt(0).toUpperCase()+m.slice(1);M[m].forEach(function(c){if(c.t==='f'){var prev=$(m+'-'+c.n+'-preview');if(prev)prev.innerHTML='';}});carregarSelects(m);}
 function fecharForm(m){$('modal-'+m).classList.remove('show');}
 
 function filtrar(m,q){q=q.toLowerCase();document.querySelectorAll('#tabela-'+m+' tr').forEach(function(r){r.style.display=r.textContent.toLowerCase().includes(q)?'':'none';});}
@@ -237,12 +288,57 @@ function buscaGlobal(q){
   document.querySelectorAll('table tbody tr').forEach(function(r){r.style.display=r.textContent.toLowerCase().includes(q)?'':'none';});
 }
 
+function uploadFile(m,fname,input){
+  if(!input.files||!input.files[0])return;
+  var fd=new FormData();fd.append('file',input.files[0]);
+  var prev=$(m+'-'+fname+'-preview');
+  if(prev)prev.innerHTML='<span style="color:var(--txt2);font-size:.85rem">Enviando...</span>';
+  fetch('/upload',{method:'POST',body:fd})
+    .then(function(r){if(!r.ok)throw new Error('Upload falhou');return r.json();})
+    .then(function(d){
+      $(m+'-'+fname).value=d.path;
+      if(prev){
+        if(d.path.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i)){
+          prev.innerHTML='<img src="'+esc(d.path)+'" style="max-width:100%;max-height:120px;border-radius:8px;margin-top:6px">';
+        }else{
+          prev.innerHTML='<span style="color:var(--pri);font-size:.85rem;margin-top:4px;display:block">'+esc(d.name)+' &#10003;</span>';
+        }
+      }
+    })
+    .catch(function(err){toast('Erro upload: '+err.message,'erro');if(prev)prev.innerHTML='';});
+}
+
+function carregarSelects(m){
+  M[m].forEach(function(c){
+    if(!c.r)return;
+    var sel=$(m+'-'+c.n);if(!sel||sel.tagName!=='SELECT')return;
+    fetch('/api/'+c.r).then(function(r){return r.json();}).then(function(items){
+      var val=sel.value;
+      sel.innerHTML='<option value="">Selecione...</option>';
+      if(!items||!items.length)return;
+      var labelKey=null;
+      if(M[c.r]){for(var i=0;i<M[c.r].length;i++){if(M[c.r][i].t==='t'||M[c.r][i].t==='e'){labelKey=M[c.r][i].n;break;}}}
+      items.forEach(function(it){
+        var label=labelKey?it[labelKey]:(it.nome||it.name||it.titulo||it.title||'#'+it.id);
+        var o=document.createElement('option');o.value=it.id;o.textContent=label;
+        if(String(it.id)===String(val))o.selected=true;
+        sel.appendChild(o);
+      });
+    });
+  });
+}
+
 function fmtCell(v,t){
   var s=esc(v);
   if(!s||s==='-')return'<span class="muted">—</span>';
   if(t==='s')return'<span class="pill pill-'+pillColor(v)+'">'+s+'</span>';
   if(t==='d'){var n=parseFloat(v);return'<span class="money">R$&nbsp;'+n.toFixed(2)+'</span>';}
   if(t==='e')return'<a class="link" href="mailto:'+s+'">'+s+'</a>';
+  if(t==='f'){
+    if(String(v).match(/\.(jpg|jpeg|png|gif|webp|svg)$/i))return'<img src="'+s+'" style="max-height:40px;border-radius:4px">';
+    return'<a class="link" href="'+s+'" target="_blank">'+s.split('/').pop()+'</a>';
+  }
+  if(t==='tl'){return s.length>60?s.substring(0,60)+'...':s;}
   return s;
 }
 
@@ -294,7 +390,7 @@ function carregar(m){
 
 function salvar(m,e){
   e.preventDefault();var id=$(m+'-id').value;var d={};
-  M[m].forEach(function(c){var v=$(m+'-'+c.n).value;d[c.n]=(c.t==='n'||c.t==='d')?parseFloat(v)||0:v;});
+  M[m].forEach(function(c){var el=$(m+'-'+c.n);var v=el?el.value:'';d[c.n]=(c.t==='n'||c.t==='d')?parseFloat(v)||0:v;});
   fetch(id?'/api/'+m+'/'+id:'/api/'+m,{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)})
     .then(function(r){if(!r.ok)return r.json().then(function(e){throw new Error(e.erro);});return r.json();})
     .then(function(){fecharForm(m);carregar(m);addAtiv(id?'e':'c',m,d[M[m][0].n]||'');toast(id?'Atualizado!':'Criado!');})
@@ -304,7 +400,23 @@ function salvar(m,e){
 function editar(m,id){
   fetch('/api/'+m+'/'+id).then(function(r){return r.json();}).then(function(item){
     $(m+'-id').value=item.id;
-    M[m].forEach(function(c){$(m+'-'+c.n).value=item[c.n]||'';});
+    carregarSelects(m);
+    M[m].forEach(function(c){
+      var el=$(m+'-'+c.n);
+      if(el)el.value=item[c.n]||'';
+      if(c.t==='f'){
+        var prev=$(m+'-'+c.n+'-preview');
+        if(prev&&item[c.n]){
+          if(String(item[c.n]).match(/\.(jpg|jpeg|png|gif|webp|svg)$/i)){
+            prev.innerHTML='<img src="'+esc(item[c.n])+'" style="max-width:100%;max-height:120px;border-radius:8px;margin-top:6px">';
+          }else{
+            prev.innerHTML='<span style="color:var(--pri);font-size:.85rem;margin-top:4px;display:block">'+esc(item[c.n])+'</span>';
+          }
+        }
+      }
+      // Re-set select value after options loaded
+      if(c.r&&el){setTimeout(function(){el.value=item[c.n]||'';},300);}
+    });
     $('titulo-form-'+m).textContent='Editar';
     $('modal-'+m).classList.add('show');
   });
@@ -315,6 +427,59 @@ function excluir(m,id){
   var tb=$('tabela-'+m),rows=tb.querySelectorAll('tr'),label='';
   rows.forEach(function(r){if(r.querySelector('.td-id')&&r.querySelector('.td-id').textContent==id){label=r.children[1]?r.children[1].textContent:'';}});
   fetch('/api/'+m+'/'+id,{method:'DELETE'}).then(function(){carregar(m);addAtiv('d',m,label);toast('Excluído!');});
+}
+
+function exportar(m,fmt){
+  var url='/api/'+m+'/export/'+fmt;
+  var a=document.createElement('a');a.href=url;a.download='';document.body.appendChild(a);a.click();document.body.removeChild(a);
+}
+
+var chartColors=['#6366f1','#8b5cf6','#ec4899','#f59e0b','#10b981','#3b82f6','#ef4444','#06b6d4'];
+var statusColors={'green':'#16a34a','red':'#ef4444','yellow':'#f59e0b','blue':'#3b82f6'};
+function renderCharts(){
+  fetch('/api/_stats').then(function(r){return r.json();}).then(function(stats){
+    var el=$('chart-models');
+    if(!el)return;
+    var models=Object.keys(stats);
+    var maxCount=0;
+    models.forEach(function(m){if(stats[m].count>maxCount)maxCount=stats[m].count;});
+    if(maxCount===0)maxCount=1;
+    var h='';
+    models.forEach(function(m,i){
+      var pct=Math.max(Math.round(stats[m].count/maxCount*100),2);
+      var c=chartColors[i%chartColors.length];
+      h+='<div class="chart-bar-row">';
+      h+='<div class="chart-bar-value" style="min-width:80px">'+m.charAt(0).toUpperCase()+m.slice(1)+'</div>';
+      h+='<div class="chart-bar-track"><div class="chart-bar-fill" style="width:'+pct+'%;background:'+c+'">'+stats[m].count+'</div></div>';
+      h+='</div>';
+    });
+    el.innerHTML=h;
+
+    // Status chart
+    var sel=$('chart-status');
+    if(!sel)return;
+    var sh='<div class="chart-status-grid">';
+    var hasAny=false;
+    models.forEach(function(m){
+      var st=stats[m].statuses;
+      if(!st||!Object.keys(st).length)return;
+      hasAny=true;
+      var maxS=0;Object.keys(st).forEach(function(k){if(st[k]>maxS)maxS=st[k];});
+      if(maxS===0)maxS=1;
+      sh+='<div class="chart-status-model"><div class="chart-status-title">'+m.charAt(0).toUpperCase()+m.slice(1)+'</div>';
+      Object.keys(st).forEach(function(k){
+        var pct2=Math.max(Math.round(st[k]/maxS*100),2);
+        var pc=pillColor(k);
+        var c2=statusColors[pc]||'#6366f1';
+        sh+='<div class="chart-bar-row"><div class="chart-bar-value" style="min-width:80px">'+esc(k)+'</div>';
+        sh+='<div class="chart-bar-track"><div class="chart-bar-fill" style="width:'+pct2+'%;background:'+c2+'">'+st[k]+'</div></div></div>';
+      });
+      sh+='</div>';
+    });
+    sh+='</div>';
+    if(hasAny)sel.innerHTML=sh;
+    else sel.innerHTML='<p class="muted" style="padding:20px;text-align:center">Nenhum dado de status</p>';
+  }).catch(function(){});
 }
 
 // WebSocket - real-time updates
@@ -334,6 +499,7 @@ function connectWS(){
 
 document.addEventListener('DOMContentLoaded',function(){
   connectWS();
+  renderCharts();
 `)
 	for _, model := range s.Program.Models {
 		b.WriteString(fmt.Sprintf("  carregar('%s');\n", lo(model.Name)))
@@ -497,6 +663,25 @@ body.sb-mini .main{margin-left:72px}
 .info-row:last-child{border-bottom:none}
 .info-k{color:var(--txt2);font-weight:500}.info-v{font-weight:600}
 
+/* ===== Charts ===== */
+.chart-card{margin-bottom:20px}
+.chart-wrap{padding:20px;min-height:120px}
+.chart-bar-group{margin-bottom:16px}
+.chart-bar-label{font-size:.8rem;font-weight:600;margin-bottom:4px;color:var(--txt2)}
+.chart-bar-row{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.chart-bar-track{flex:1;height:28px;background:var(--bg2);border-radius:var(--r3);overflow:hidden;position:relative}
+.chart-bar-fill{height:100%;border-radius:var(--r3);transition:width .6s var(--ease);display:flex;align-items:center;padding-left:10px;
+  font-size:.75rem;font-weight:700;color:#fff;min-width:fit-content}
+.chart-bar-value{font-size:.8rem;font-weight:700;color:var(--txt);min-width:30px;text-align:right}
+.chart-status-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+.chart-status-model{padding:12px;background:var(--bg2);border-radius:var(--r2)}
+.chart-status-title{font-size:.85rem;font-weight:700;margin-bottom:10px}
+
+/* ===== Export / Section Actions ===== */
+.sec-actions{display:flex;align-items:center;gap:8px}
+.btn-sm{padding:7px 14px;font-size:.8rem}
+.btn-sm svg{width:14px;height:14px}
+
 /* ===== Section ===== */
 .section{animation:fadeUp .35s var(--ease)}
 @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
@@ -585,6 +770,9 @@ body.dark .pill-blue{background:rgba(59,130,246,.15);color:#93c5fd}
 .field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--pri);
   box-shadow:0 0 0 4px rgba(99,102,241,.1);background:var(--card-solid)}
 .field input::placeholder{color:var(--txt3)}
+.field textarea{resize:vertical;min-height:80px}
+.upload-preview{min-height:0}
+.upload-preview img{display:block}
 .modal-foot{display:flex;gap:10px;padding-top:16px;border-top:1px solid var(--brd)}
 
 /* ===== Toast ===== */

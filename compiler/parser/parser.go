@@ -203,6 +203,19 @@ func (p *Parser) parseDados() error {
 func (p *Parser) parseModel() (*ast.Model, error) {
 	nameTok := p.advance()
 	model := &ast.Model{Name: nameTok.Value}
+
+	// Check for modifiers after model name on the same line (e.g. soft_delete)
+	for !p.isAtEnd() && p.current().Type != lexer.TokenNewline {
+		if p.current().Type == lexer.TokenSoftDelete {
+			model.SoftDelete = true
+			p.advance()
+		} else if p.current().Type == lexer.TokenIndent {
+			p.advance()
+		} else {
+			break
+		}
+	}
+
 	p.skipWhitespace()
 
 	for !p.isAtEnd() && !p.isBlockKeyword() {
@@ -289,6 +302,9 @@ func (p *Parser) parseField() (*ast.Field, error) {
 			p.advance()
 		case lexer.TokenUnico:
 			field.Unique = true
+			p.advance()
+		case lexer.TokenIndice:
+			field.Index = true
 			p.advance()
 		case lexer.TokenPertenceA:
 			p.advance()
@@ -906,6 +922,20 @@ func (p *Parser) parseIntegracoes() error {
 			continue
 		}
 
+		if tok.Type == lexer.TokenEmailInteg || tok.Value == "email" {
+			if err := p.parseEmailInteg(); err != nil {
+				return err
+			}
+			continue
+		}
+
+		if tok.Type == lexer.TokenCron {
+			if err := p.parseCron(); err != nil {
+				return err
+			}
+			continue
+		}
+
 		p.advance()
 	}
 	return nil
@@ -1121,4 +1151,295 @@ func (p *Parser) parseAuth() error {
 
 	p.program.Auth = auth
 	return nil
+}
+
+// parseEmailInteg parses the email sub-block inside integracoes.
+// email
+//
+//	servidor: "smtp.gmail.com"
+//	porta: "587"
+//	usuario: "me@gmail.com"
+//	senha: "app-password"
+//	quando criar pedido
+//	  enviar email para cliente.email
+//	    assunto "Pedido recebido"
+//	    texto "Olá {cliente}, seu pedido..."
+func (p *Parser) parseEmailInteg() error {
+	p.advance() // consume 'email'
+	p.skipWhitespace()
+
+	// Initialize email config
+	if p.program.Email == nil {
+		p.program.Email = &ast.EmailConfig{}
+	}
+
+	for !p.isAtEnd() && !p.isBlockKeyword() {
+		tok := p.current()
+
+		if tok.Type == lexer.TokenNewline || tok.Type == lexer.TokenIndent {
+			p.advance()
+			continue
+		}
+
+		// quando <trigger> <model> — parse as email notifier
+		if tok.Type == lexer.TokenQuando {
+			notif, err := p.parseEmailNotifier()
+			if err != nil {
+				return err
+			}
+			if notif != nil {
+				p.program.Notifiers = append(p.program.Notifiers, notif)
+			}
+			continue
+		}
+
+		// Exit if we hit another integration keyword
+		if tok.Type == lexer.TokenWhatsapp || tok.Type == lexer.TokenCron || tok.Type == lexer.TokenEmailInteg {
+			break
+		}
+
+		// Config key: value pairs (servidor, porta, usuario, senha)
+		if tok.Type == lexer.TokenIdentifier || lexer.IsTypeKeyword(tok.Type) ||
+			tok.Type == lexer.TokenSenha || tok.Type == lexer.TokenUsuario {
+			key := p.advance().Value
+			p.skipIndent()
+
+			if p.current().Type == lexer.TokenColon {
+				p.advance()
+				p.skipIndent()
+			}
+
+			val := ""
+			if p.current().Type == lexer.TokenString {
+				val = p.advance().Value
+			} else if !p.isAtEnd() && p.current().Type != lexer.TokenNewline {
+				val = p.advance().Value
+			}
+
+			switch key {
+			case "servidor", "server", "host":
+				p.program.Email.Host = val
+			case "porta", "port":
+				p.program.Email.Port = val
+			case "usuario", "user", "username":
+				p.program.Email.User = val
+			case "senha", "password", "pass":
+				p.program.Email.Password = val
+			case "de", "from", "remetente":
+				p.program.Email.From = val
+			}
+			continue
+		}
+
+		p.advance()
+	}
+
+	return nil
+}
+
+// parseEmailNotifier parses an email notification trigger.
+// quando criar pedido
+//
+//	enviar email para cliente.email
+//	  assunto "Pedido recebido"
+//	  texto "Mensagem aqui"
+func (p *Parser) parseEmailNotifier() (*ast.Notifier, error) {
+	p.advance() // consume 'quando'
+	p.skipIndent()
+
+	notif := &ast.Notifier{Channel: "email"}
+
+	// trigger: criar, atualizar, deletar
+	if !p.isAtEnd() && p.current().Type != lexer.TokenNewline {
+		notif.Trigger = p.advance().Value
+	}
+	p.skipIndent()
+
+	// model name
+	if !p.isAtEnd() && p.current().Type != lexer.TokenNewline {
+		notif.Model = p.advance().Value
+	}
+
+	p.skipWhitespace()
+
+	// Parse body: enviar email para <dest> / assunto "..." / texto "..."
+	for !p.isAtEnd() && !p.isBlockKeyword() {
+		tok := p.current()
+
+		if tok.Type == lexer.TokenNewline || tok.Type == lexer.TokenIndent {
+			p.advance()
+			continue
+		}
+
+		// Stop at next 'quando' or integration keyword
+		if tok.Type == lexer.TokenQuando || tok.Type == lexer.TokenWhatsapp ||
+			tok.Type == lexer.TokenCron || tok.Type == lexer.TokenEmailInteg {
+			break
+		}
+
+		switch tok.Value {
+		case "enviar", "send":
+			p.advance()
+			p.skipIndent()
+			// skip 'email' / 'mensagem' / 'message'
+			if p.current().Value == "email" || p.current().Type == lexer.TokenMensagem {
+				p.advance()
+			}
+			p.skipIndent()
+			// skip 'para' / 'to'
+			if p.current().Value == "para" || p.current().Type == lexer.TokenPara {
+				p.advance()
+			}
+			p.skipIndent()
+			// destination
+			if !p.isAtEnd() && p.current().Type != lexer.TokenNewline {
+				notif.SendTo = p.advance().Value
+				if p.current().Type == lexer.TokenDot {
+					p.advance()
+					if !p.isAtEnd() && p.current().Type != lexer.TokenNewline {
+						notif.SendTo += "." + p.advance().Value
+					}
+				}
+			}
+
+		case "assunto", "subject":
+			p.advance()
+			p.skipIndent()
+			if p.current().Type == lexer.TokenString {
+				notif.Subject = p.advance().Value
+			}
+
+		case "texto", "text":
+			p.advance()
+			p.skipIndent()
+			if p.current().Type == lexer.TokenString {
+				notif.Message = p.advance().Value
+			}
+
+		default:
+			p.advance()
+		}
+	}
+
+	return notif, nil
+}
+
+// parseCron parses the cron sub-block inside integracoes.
+// cron
+//
+//	cada 5 minutos
+//	  chamar api "https://example.com/webhook"
+//	cada 1 hora
+//	  limpar sessoes
+func (p *Parser) parseCron() error {
+	p.advance() // consume 'cron'
+	p.skipWhitespace()
+
+	for !p.isAtEnd() && !p.isBlockKeyword() {
+		tok := p.current()
+
+		if tok.Type == lexer.TokenNewline || tok.Type == lexer.TokenIndent {
+			p.advance()
+			continue
+		}
+
+		// cada/every <N> <unit>
+		if tok.Type == lexer.TokenCada {
+			job, err := p.parseCronJob()
+			if err != nil {
+				return err
+			}
+			if job != nil {
+				p.program.Crons = append(p.program.Crons, job)
+			}
+			continue
+		}
+
+		// Exit if we hit another integration keyword
+		if tok.Type == lexer.TokenWhatsapp || tok.Type == lexer.TokenEmailInteg || tok.Type == lexer.TokenCron {
+			break
+		}
+
+		p.advance()
+	}
+
+	return nil
+}
+
+// parseCronJob parses a single cron job definition.
+// cada 5 minutos
+//
+//	chamar api "https://example.com/webhook"
+func (p *Parser) parseCronJob() (*ast.CronJob, error) {
+	p.advance() // consume 'cada' / 'every'
+	p.skipIndent()
+
+	job := &ast.CronJob{}
+
+	// Parse interval: <number> <unit>
+	var intervalParts []string
+	for !p.isAtEnd() && p.current().Type != lexer.TokenNewline {
+		if p.current().Type == lexer.TokenIndent {
+			p.advance()
+			continue
+		}
+		intervalParts = append(intervalParts, p.advance().Value)
+	}
+	job.Every = strings.Join(intervalParts, " ")
+
+	p.skipWhitespace()
+
+	// Parse action line(s)
+	for !p.isAtEnd() && !p.isBlockKeyword() {
+		tok := p.current()
+
+		if tok.Type == lexer.TokenNewline || tok.Type == lexer.TokenIndent {
+			p.advance()
+			continue
+		}
+
+		// Stop at next 'cada' or integration keyword
+		if tok.Type == lexer.TokenCada || tok.Type == lexer.TokenWhatsapp ||
+			tok.Type == lexer.TokenEmailInteg || tok.Type == lexer.TokenCron {
+			break
+		}
+
+		// chamar api "url" / chamar "url"
+		if tok.Type == lexer.TokenChamar || tok.Value == "chamar" || tok.Value == "call" {
+			p.advance()
+			p.skipIndent()
+			job.Action = "chamar"
+
+			// skip optional 'api'
+			if p.current().Type == lexer.TokenApi || p.current().Value == "api" {
+				p.advance()
+				p.skipIndent()
+			}
+
+			// URL
+			if p.current().Type == lexer.TokenString {
+				job.Target = p.advance().Value
+			}
+			break
+		}
+
+		// Generic action: collect remaining tokens on the line as action + target
+		var actionParts []string
+		for !p.isAtEnd() && p.current().Type != lexer.TokenNewline {
+			if p.current().Type == lexer.TokenIndent {
+				p.advance()
+				continue
+			}
+			actionParts = append(actionParts, p.advance().Value)
+		}
+		if len(actionParts) > 0 {
+			job.Action = actionParts[0]
+			if len(actionParts) > 1 {
+				job.Target = strings.Join(actionParts[1:], " ")
+			}
+		}
+		break
+	}
+
+	return job, nil
 }

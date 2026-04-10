@@ -1,0 +1,40 @@
+{
+  "name": "flang",
+  "displayName": "Flang Language",
+  "description": "Syntax highlighting for the Flang declarative language (.fg files)",
+  "version": "0.2.0",
+  "publisher": "flang",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "flang",
+        "aliases": [
+          "Flang",
+          "flang"
+        ],
+        "extensions": [
+          ".fg"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "flang",
+        "scopeName": "source.flang",
+        "path": "./syntaxes/flang.tmLanguage.json"
+      }
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/flavio/flang"
+  },
+  "license": "MIT"
+}

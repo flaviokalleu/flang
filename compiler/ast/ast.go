@@ -12,6 +12,7 @@ type Program struct {
 	Database  *DatabaseConfig
 	Auth      *AuthConfig
 	WhatsApp  *WhatsAppConfig
+	Email     *EmailConfig
 	Imports   []*Import
 	Models    []*Model
 	Screens   []*Screen
@@ -32,6 +33,9 @@ func (p *Program) Merge(other *Program) {
 	}
 	if other.Auth != nil && p.Auth == nil {
 		p.Auth = other.Auth
+	}
+	if other.Email != nil && p.Email == nil {
+		p.Email = other.Email
 	}
 	p.Models = append(p.Models, other.Models...)
 	p.Screens = append(p.Screens, other.Screens...)
@@ -117,6 +121,18 @@ type WhatsAppConfig struct {
 }
 
 func (w *WhatsAppConfig) NodeType() string { return "WhatsAppConfig" }
+
+// ==================== Email ====================
+
+type EmailConfig struct {
+	Host     string
+	Port     string
+	User     string
+	Password string
+	From     string
+}
+
+func (e *EmailConfig) NodeType() string { return "EmailConfig" }
 
 // ==================== Model ====================
 
@@ -264,6 +280,7 @@ type Notifier struct {
 	Value    string
 	SendTo   string
 	Message  string
+	Subject  string // email subject
 	Channel  string // whatsapp, email, webhook
 }
 

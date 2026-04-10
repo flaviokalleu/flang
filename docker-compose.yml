@@ -1,0 +1,36 @@
+version: "3.9"
+
+services:
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - FLANG_DB_HOST=postgres
+      - FLANG_DB_PORT=5432
+      - FLANG_DB_USER=flang
+      - FLANG_DB_PASS=flang
+      - FLANG_DB_NAME=flang
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: flang
+      POSTGRES_PASSWORD: flang
+      POSTGRES_DB: flang
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U flang"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  pgdata:

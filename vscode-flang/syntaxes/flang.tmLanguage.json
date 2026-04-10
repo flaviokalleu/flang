@@ -1,0 +1,111 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Flang",
+  "scopeName": "source.flang",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#numbers" },
+    { "include": "#block-keywords" },
+    { "include": "#screen-keywords" },
+    { "include": "#type-keywords" },
+    { "include": "#event-keywords" },
+    { "include": "#logic-keywords" },
+    { "include": "#import-keywords" },
+    { "include": "#entity-names" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.hash.flang",
+          "match": "#.*$"
+        },
+        {
+          "name": "comment.line.double-slash.flang",
+          "match": "//.*$"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.flang",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.flang",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.flang",
+          "match": "\\b[0-9]+(\\.[0-9]+)?\\b"
+        }
+      ]
+    },
+    "block-keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.block.flang",
+          "match": "\\b(sistema|dados|telas|eventos|tema|logica|banco|integracoes|autenticacao|system|data|screens|events|theme|logic|database|integrations|authentication)\\b"
+        }
+      ]
+    },
+    "screen-keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.screen.flang",
+          "match": "\\b(tela|titulo|lista|mostrar|botao|screen|title|list|show|button)\\b"
+        }
+      ]
+    },
+    "type-keywords": {
+      "patterns": [
+        {
+          "name": "storage.type.flang",
+          "match": "\\b(texto|numero|dinheiro|email|telefone|status|senha|data|imagem|boolean|text|number|money|phone|password|date|image)\\b"
+        }
+      ]
+    },
+    "event-keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.event.flang",
+          "match": "\\b(quando|clicar|criar|atualizar|deletar|salvar|when|click|create|update|delete|save)\\b"
+        }
+      ]
+    },
+    "logic-keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.logic.flang",
+          "match": "\\b(se|senao|igual|maior|menor|validar|obrigatorio|if|else|equals|greater|less|validate|required)\\b"
+        }
+      ]
+    },
+    "import-keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.import.flang",
+          "match": "\\b(importar|de|import|from)\\b"
+        }
+      ]
+    },
+    "entity-names": {
+      "patterns": [
+        {
+          "name": "entity.name.section.flang",
+          "match": "(?<=^\\s*(sistema|system|tela|screen)\\s+)\\w+",
+          "comment": "Entity name after sistema/tela keywords"
+        }
+      ]
+    }
+  }
+}

@@ -186,9 +186,29 @@ func (b *Banco) criarTabela(model *ast.Model) error {
 	cols = append(cols, fmt.Sprintf("%s %s DEFAULT %s", q("criado_em"), tsType, tsDefault))
 	cols = append(cols, fmt.Sprintf("%s %s DEFAULT %s", q("atualizado_em"), tsType, tsDefault))
 
+	// Soft delete column
+	if model.SoftDelete {
+		cols = append(cols, fmt.Sprintf("%s %s DEFAULT NULL", q("deletado_em"), tsType))
+	}
+
 	query := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (\n  %s\n)", q(name), strings.Join(cols, ",\n  "))
-	_, err := b.DB.Exec(query)
-	return err
+	if _, err := b.DB.Exec(query); err != nil {
+		return err
+	}
+
+	// Create indexes for fields with Index: true
+	for _, f := range model.Fields {
+		if f.Index {
+			fname := strings.ToLower(f.Name)
+			idxQuery := fmt.Sprintf("CREATE INDEX IF NOT EXISTS %s ON %s(%s)",
+				q(fmt.Sprintf("idx_%s_%s", name, fname)), q(name), q(fname))
+			if _, err := b.DB.Exec(idxQuery); err != nil {
+				return fmt.Errorf("erro ao criar índice para '%s.%s': %w", name, fname, err)
+			}
+		}
+	}
+
+	return nil
 }
 
 // Listar returns all rows from a model table.
@@ -228,8 +248,13 @@ func (b *Banco) Listar(modelo string, params *ListarParams) ([]map[string]any, i
 	var args []any
 	n := 1
 
-	// Filters
+	// Soft delete: exclude deleted records
 	model := b.Models[modelo]
+	if model.SoftDelete {
+		where = append(where, q("deletado_em")+" IS NULL")
+	}
+
+	// Filters
 	for _, f := range model.Fields {
 		fname := strings.ToLower(f.Name)
 		if val, ok := params.Filtros[fname]; ok && val != "" {
@@ -399,13 +424,36 @@ func (b *Banco) Atualizar(modelo string, id int64, dados json.RawMessage) (map[s
 	return b.Buscar(modelo, id)
 }
 
-// Deletar removes a row by ID.
+// Deletar removes a row by ID (or soft-deletes if model has SoftDelete).
 func (b *Banco) Deletar(modelo string, id int64) error {
-	if _, ok := b.Models[modelo]; !ok {
+	model, ok := b.Models[modelo]
+	if !ok {
 		return fmt.Errorf("modelo '%s' não encontrado", modelo)
+	}
+	if model.SoftDelete {
+		_, err := b.DB.Exec(fmt.Sprintf("UPDATE %s SET %s = CURRENT_TIMESTAMP WHERE %s = %s",
+			q(modelo), q("deletado_em"), q("id"), b.ph(1)), id)
+		return err
 	}
 	_, err := b.DB.Exec(fmt.Sprintf("DELETE FROM %s WHERE %s = %s", q(modelo), q("id"), b.ph(1)), id)
 	return err
+}
+
+// Restaurar restores a soft-deleted row by ID.
+func (b *Banco) Restaurar(modelo string, id int64) (map[string]any, error) {
+	model, ok := b.Models[modelo]
+	if !ok {
+		return nil, fmt.Errorf("modelo '%s' não encontrado", modelo)
+	}
+	if !model.SoftDelete {
+		return nil, fmt.Errorf("modelo '%s' não suporta soft delete", modelo)
+	}
+	_, err := b.DB.Exec(fmt.Sprintf("UPDATE %s SET %s = NULL WHERE %s = %s",
+		q(modelo), q("deletado_em"), q("id"), b.ph(1)), id)
+	if err != nil {
+		return nil, err
+	}
+	return b.Buscar(modelo, id)
 }
 
 // Fechar closes the database connection.
@@ -416,8 +464,79 @@ func (b *Banco) Fechar() {
 // Contar returns the count of rows in a table.
 func (b *Banco) Contar(modelo string) (int64, error) {
 	var count int64
-	err := b.DB.QueryRow(fmt.Sprintf("SELECT COUNT(*) FROM %s", q(modelo))).Scan(&count)
+	model := b.Models[modelo]
+	whereSQL := ""
+	if model != nil && model.SoftDelete {
+		whereSQL = " WHERE " + q("deletado_em") + " IS NULL"
+	}
+	err := b.DB.QueryRow(fmt.Sprintf("SELECT COUNT(*) FROM %s%s", q(modelo), whereSQL)).Scan(&count)
 	return count, err
+}
+
+// ContarPorStatus returns counts grouped by the status field for a model.
+func (b *Banco) ContarPorStatus(modelo string) (map[string]int64, error) {
+	model, ok := b.Models[modelo]
+	if !ok {
+		return nil, fmt.Errorf("modelo '%s' não encontrado", modelo)
+	}
+
+	// Find the status field
+	statusField := ""
+	for _, f := range model.Fields {
+		if f.Type == "status" {
+			statusField = strings.ToLower(f.Name)
+			break
+		}
+	}
+	if statusField == "" {
+		return nil, nil // no status field
+	}
+
+	whereSQL := ""
+	if model.SoftDelete {
+		whereSQL = " WHERE " + q("deletado_em") + " IS NULL"
+	}
+
+	query := fmt.Sprintf("SELECT COALESCE(%s, 'sem_status'), COUNT(*) FROM %s%s GROUP BY %s",
+		q(statusField), q(modelo), whereSQL, q(statusField))
+	rows, err := b.DB.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[string]int64)
+	for rows.Next() {
+		var status string
+		var count int64
+		if err := rows.Scan(&status, &count); err != nil {
+			return nil, err
+		}
+		result[status] = count
+	}
+	return result, nil
+}
+
+// ListarTodos returns all rows (for export), ignoring soft-deleted records.
+func (b *Banco) ListarTodos(modelo string) ([]map[string]any, error) {
+	model, ok := b.Models[modelo]
+	if !ok {
+		return nil, fmt.Errorf("modelo '%s' não encontrado", modelo)
+	}
+
+	whereSQL := ""
+	if model.SoftDelete {
+		whereSQL = " WHERE " + q("deletado_em") + " IS NULL"
+	}
+
+	query := fmt.Sprintf("SELECT * FROM %s%s ORDER BY %s DESC", q(modelo), whereSQL, q("id"))
+	rows, err := b.DB.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	return scanRows(rows)
 }
 
 // Validar checks field constraints.

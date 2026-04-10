@@ -10,6 +10,9 @@ import (
 	"github.com/flavio/flang/compiler/parser"
 	authpkg "github.com/flavio/flang/runtime/auth"
 	"github.com/flavio/flang/runtime/banco"
+	cronpkg "github.com/flavio/flang/runtime/cron"
+	emailpkg "github.com/flavio/flang/runtime/email"
+	"github.com/flavio/flang/runtime/httpclient"
 	"github.com/flavio/flang/runtime/servidor"
 	wa "github.com/flavio/flang/runtime/whatsapp"
 )
@@ -165,10 +168,37 @@ func Executar(arquivo string, porta string) error {
 		}
 	}
 
+	// Email
+	var emailClient *emailpkg.Client
+	if program.Email != nil && program.Email.Host != "" {
+		emailClient = emailpkg.Novo(emailpkg.Config{
+			Host:     program.Email.Host,
+			Port:     program.Email.Port,
+			User:     program.Email.User,
+			Password: program.Email.Password,
+			From:     program.Email.From,
+		})
+		fmt.Println("[flang] Email SMTP: ativado")
+	}
+
+	// HTTP Client
+	httpClient := httpclient.Novo()
+
 	// Server
 	srv := servidor.Novo(program, db, porta)
 	srv.Auth = authHandler
 	srv.WA = waClient
+	srv.Email = emailClient
+	srv.HTTPClient = httpClient
+
+	// Cron Jobs
+	if len(program.Crons) > 0 {
+		scheduler := cronpkg.Novo(program.Crons)
+		scheduler.Iniciar()
+		defer scheduler.Parar()
+		fmt.Printf("[flang] Cron: %d job(s) agendado(s)\n", len(program.Crons))
+	}
+
 	fmt.Printf("\n[flang] %s rodando em http://localhost:%s\n\n", program.System.Name, porta)
 	return srv.Iniciar()
 }
@@ -198,6 +228,18 @@ func Verificar(arquivo string) error {
 	fmt.Printf("  regras:   %d\n", len(program.Rules))
 	if program.WhatsApp != nil && program.WhatsApp.Enabled {
 		fmt.Printf("  whatsapp: ativado (%d notificações)\n", len(program.Notifiers))
+	}
+	if program.Email != nil && program.Email.Host != "" {
+		emailNotifs := 0
+		for _, n := range program.Notifiers {
+			if n.Channel == "email" {
+				emailNotifs++
+			}
+		}
+		fmt.Printf("  email:    ativado (%d notificações)\n", emailNotifs)
+	}
+	if len(program.Crons) > 0 {
+		fmt.Printf("  cron:     %d job(s)\n", len(program.Crons))
 	}
 	return nil
 }
