@@ -20,11 +20,11 @@ jobs:
           go-version-file: go.mod
 
       - name: Build
-        run: go build -o flang .
+        run: CGO_ENABLED=0 go build -o flang .
 
       - name: Check example files
         run: |
-          for fg in exemplos/*/inicio.fg; do
+          for fg in $(find demo -name inicio.fg -type f); do
             echo "Checking $fg ..."
             ./flang check "$fg"
           done
