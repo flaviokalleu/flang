@@ -132,18 +132,18 @@ html,body{margin:0;height:100%;overflow:hidden}
     <div class="w-52 bg-gray-900 border-r border-gray-800 flex flex-col flex-shrink-0 overflow-hidden">
       <div class="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">Componentes</div>
       <div class="flex-1 overflow-y-auto px-2 space-y-1">
-        <div class="palette-item" onmousedown="addToCanvas('titulo')"><span>T</span> Titulo</div>
-        <div class="palette-item" onmousedown="addToCanvas('lista')"><span>&#9776;</span> Lista / Tabela</div>
-        <div class="palette-item" onmousedown="addToCanvas('botao')"><span>&#9634;</span> Botao</div>
-        <div class="palette-item" onmousedown="addToCanvas('busca')"><span>&#128269;</span> Busca</div>
-        <div class="palette-item" onmousedown="addToCanvas('grafico')"><span>&#128202;</span> Grafico</div>
-        <div class="palette-item" onmousedown="addToCanvas('cards')"><span>&#128203;</span> Cards / Dashboard</div>
-        <div class="palette-item" onmousedown="addToCanvas('formulario')"><span>&#128221;</span> Formulario</div>
-        <div class="palette-item" onmousedown="addToCanvas('texto')"><span>Aa</span> Texto / Label</div>
-        <div class="palette-item" onmousedown="addToCanvas('imagem')"><span>&#128444;</span> Imagem</div>
-        <div class="palette-item" onmousedown="addToCanvas('separador')"><span>&#8212;</span> Separador</div>
-        <div class="palette-item" onmousedown="addToCanvas('input')"><span>&#9000;</span> Campo de Entrada</div>
-        <div class="palette-item" onmousedown="addToCanvas('select')"><span>&#9662;</span> Dropdown</div>
+        <div class="palette-item" draggable="true" ondragstart="dragStartComp(event,'titulo')"><span>T</span> Titulo</div>
+        <div class="palette-item" draggable="true" ondragstart="dragStartComp(event,'lista')"><span>&#9776;</span> Lista / Tabela</div>
+        <div class="palette-item" draggable="true" ondragstart="dragStartComp(event,'botao')"><span>&#9634;</span> Botao</div>
+        <div class="palette-item" draggable="true" ondragstart="dragStartComp(event,'busca')"><span>&#128269;</span> Busca</div>
+        <div class="palette-item" draggable="true" ondragstart="dragStartComp(event,'grafico')"><span>&#128202;</span> Grafico</div>
+        <div class="palette-item" draggable="true" ondragstart="dragStartComp(event,'cards')"><span>&#128203;</span> Cards / Dashboard</div>
+        <div class="palette-item" draggable="true" ondragstart="dragStartComp(event,'formulario')"><span>&#128221;</span> Formulario</div>
+        <div class="palette-item" draggable="true" ondragstart="dragStartComp(event,'texto')"><span>Aa</span> Texto / Label</div>
+        <div class="palette-item" draggable="true" ondragstart="dragStartComp(event,'imagem')"><span>&#128444;</span> Imagem</div>
+        <div class="palette-item" draggable="true" ondragstart="dragStartComp(event,'separador')"><span>&#8212;</span> Separador</div>
+        <div class="palette-item" draggable="true" ondragstart="dragStartComp(event,'input')"><span>&#9000;</span> Campo de Entrada</div>
+        <div class="palette-item" draggable="true" ondragstart="dragStartComp(event,'select')"><span>&#9662;</span> Dropdown</div>
       </div>
 
       <div class="border-t border-gray-800 p-3">
@@ -159,7 +159,10 @@ html,body{margin:0;height:100%;overflow:hidden}
     </div>
 
     <!-- Fabric.js Canvas -->
-    <div class="flex-1 relative overflow-hidden bg-gray-950" id="canvas-wrapper">
+    <div class="flex-1 relative overflow-hidden bg-gray-950" id="canvas-wrapper"
+         ondragover="event.preventDefault();this.style.outline='2px solid #6366f1'"
+         ondragleave="this.style.outline='none'"
+         ondrop="dropOnCanvas(event);this.style.outline='none'">
       <div class="absolute top-3 left-3 z-10 flex items-center gap-2">
         <span id="zoom-level" class="text-xs text-gray-500 bg-gray-900/80 px-2 py-1 rounded">100%</span>
         <button onclick="zoomIn()" class="text-xs text-gray-400 bg-gray-900/80 px-2 py-1 rounded hover:bg-gray-800">+</button>
@@ -742,17 +745,37 @@ function initFabricCanvas() {
   designerReady = true;
 }
 
-function addToCanvas(type) {
+function dragStartComp(e, type) {
+  e.dataTransfer.setData('compType', type);
+  e.dataTransfer.effectAllowed = 'copy';
+}
+
+function dropOnCanvas(e) {
+  e.preventDefault();
+  var type = e.dataTransfer.getData('compType');
+  if (!type) return;
+  if (!fabricCanvas) initFabricCanvas();
+  var rect = document.getElementById('canvas-wrapper').getBoundingClientRect();
+  var zoom = fabricCanvas.getZoom();
+  var vpt = fabricCanvas.viewportTransform;
+  var x = (e.clientX - rect.left - vpt[4]) / zoom;
+  var y = (e.clientY - rect.top - vpt[5]) / zoom;
+  addToCanvas(type, x, y);
+}
+
+function addToCanvas(type, dropX, dropY) {
   if (!fabricCanvas) initFabricCanvas();
 
   compCounter++;
   var id = 'comp-' + compCounter;
   var group;
 
-  var cx = fabricCanvas.width / 2 / fabricCanvas.getZoom();
-  var cy = fabricCanvas.height / 2 / fabricCanvas.getZoom();
-  cx += (Math.random() - 0.5) * 100;
-  cy += (Math.random() - 0.5) * 100;
+  var cx = dropX !== undefined ? dropX : fabricCanvas.width / 2 / fabricCanvas.getZoom();
+  var cy = dropY !== undefined ? dropY : fabricCanvas.height / 2 / fabricCanvas.getZoom();
+  if (dropX === undefined) {
+    cx += (Math.random() - 0.5) * 100;
+    cy += (Math.random() - 0.5) * 100;
+  }
 
   switch(type) {
     case 'titulo':
