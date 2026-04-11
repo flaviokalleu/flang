@@ -12,7 +12,7 @@ import (
 	"github.com/flavio/flang/runtime/ide"
 )
 
-const version = "0.5.1"
+const version = "0.6.0"
 
 const banner = `
   ███████╗██╗      █████╗ ███╗   ██╗ ██████╗
