@@ -7,6 +7,7 @@ var ideHTML = `<!DOCTYPE html>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Flang IDE</title>
 <script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/6.6.1/fabric.min.js"></script>
 <script>tailwind.config={darkMode:'class',theme:{extend:{colors:{primary:'#6366f1',accent:'#f59e0b'}}}}</script>
 <style>
 html,body{margin:0;height:100%;overflow:hidden}
@@ -124,73 +125,62 @@ html,body{margin:0;height:100%;overflow:hidden}
     </div>
   </div>
 
-  <!-- Panel: Designer (visual screen builder) -->
+  <!-- Panel: Designer (Fabric.js canvas editor) -->
   <div id="panel-designer" style="display:none" class="flex flex-1 overflow-hidden">
 
     <!-- Component Palette -->
-    <div class="w-48 bg-gray-900 border-r border-gray-800 p-3 overflow-y-auto flex-shrink-0">
-      <div class="text-xs font-semibold text-gray-500 uppercase mb-3">Componentes</div>
-      <div class="space-y-1">
-        <div class="palette-item" draggable="true" ondragstart="dragComp(event,'titulo')" data-type="titulo">
-          <span class="w-4 h-4">T</span> Titulo
-        </div>
-        <div class="palette-item" draggable="true" ondragstart="dragComp(event,'lista')" data-type="lista">
-          <span class="w-4 h-4">&#9776;</span> Lista/Tabela
-        </div>
-        <div class="palette-item" draggable="true" ondragstart="dragComp(event,'botao')" data-type="botao">
-          <span class="w-4 h-4">&#9634;</span> Botao
-        </div>
-        <div class="palette-item" draggable="true" ondragstart="dragComp(event,'busca')" data-type="busca">
-          <span class="w-4 h-4">&#128269;</span> Busca
-        </div>
-        <div class="palette-item" draggable="true" ondragstart="dragComp(event,'grafico')" data-type="grafico">
-          <span class="w-4 h-4">&#128202;</span> Grafico
-        </div>
-        <div class="palette-item" draggable="true" ondragstart="dragComp(event,'dashboard')" data-type="dashboard">
-          <span class="w-4 h-4">&#128203;</span> Dashboard
-        </div>
-        <div class="palette-item" draggable="true" ondragstart="dragComp(event,'formulario')" data-type="formulario">
-          <span class="w-4 h-4">&#128221;</span> Formulario
-        </div>
-        <div class="palette-item" draggable="true" ondragstart="dragComp(event,'texto')" data-type="texto">
-          <span class="w-4 h-4">Aa</span> Texto
-        </div>
+    <div class="w-52 bg-gray-900 border-r border-gray-800 flex flex-col flex-shrink-0 overflow-hidden">
+      <div class="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">Componentes</div>
+      <div class="flex-1 overflow-y-auto px-2 space-y-1">
+        <div class="palette-item" onmousedown="addToCanvas('titulo')"><span>T</span> Titulo</div>
+        <div class="palette-item" onmousedown="addToCanvas('lista')"><span>&#9776;</span> Lista / Tabela</div>
+        <div class="palette-item" onmousedown="addToCanvas('botao')"><span>&#9634;</span> Botao</div>
+        <div class="palette-item" onmousedown="addToCanvas('busca')"><span>&#128269;</span> Busca</div>
+        <div class="palette-item" onmousedown="addToCanvas('grafico')"><span>&#128202;</span> Grafico</div>
+        <div class="palette-item" onmousedown="addToCanvas('cards')"><span>&#128203;</span> Cards / Dashboard</div>
+        <div class="palette-item" onmousedown="addToCanvas('formulario')"><span>&#128221;</span> Formulario</div>
+        <div class="palette-item" onmousedown="addToCanvas('texto')"><span>Aa</span> Texto / Label</div>
+        <div class="palette-item" onmousedown="addToCanvas('imagem')"><span>&#128444;</span> Imagem</div>
+        <div class="palette-item" onmousedown="addToCanvas('separador')"><span>&#8212;</span> Separador</div>
+        <div class="palette-item" onmousedown="addToCanvas('input')"><span>&#9000;</span> Campo de Entrada</div>
+        <div class="palette-item" onmousedown="addToCanvas('select')"><span>&#9662;</span> Dropdown</div>
       </div>
 
-      <div class="text-xs font-semibold text-gray-500 uppercase mt-6 mb-3">Telas</div>
-      <button onclick="addScreen()" class="w-full px-3 py-2 text-xs bg-primary/10 text-primary rounded-lg hover:bg-primary/20 transition-all">+ Nova Tela</button>
-      <div id="screen-list" class="mt-2 space-y-1"></div>
-    </div>
-
-    <!-- Canvas -->
-    <div class="flex-1 flex flex-col overflow-hidden">
-      <div class="px-4 py-2 bg-gray-900 border-b border-gray-800 flex items-center justify-between">
-        <div class="flex items-center gap-2">
-          <span class="text-sm font-semibold" id="canvas-screen-name">Selecione uma tela</span>
-        </div>
-        <button onclick="generateFromDesigner()" class="px-3 py-1.5 text-xs bg-primary hover:bg-primary/80 text-white rounded-lg transition-all">Gerar Codigo .fg</button>
-      </div>
-      <div id="canvas" class="flex-1 overflow-y-auto p-6 bg-gray-950"
-           ondragover="event.preventDefault();this.classList.add('ring-2','ring-primary/50')"
-           ondragleave="this.classList.remove('ring-2','ring-primary/50')"
-           ondrop="dropComp(event);this.classList.remove('ring-2','ring-primary/50')">
-        <div id="canvas-empty" class="flex flex-col items-center justify-center h-full text-gray-600">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" class="w-16 h-16 mb-4 opacity-30"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
-          <p class="text-sm">Arraste componentes aqui</p>
-          <p class="text-xs mt-1 opacity-50">ou crie uma nova tela na esquerda</p>
+      <div class="border-t border-gray-800 p-3">
+        <div class="text-xs font-semibold text-gray-500 uppercase mb-2">Tela</div>
+        <input type="text" id="d-screen-name" value="principal" placeholder="Nome da tela"
+          class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-gray-200 mb-2 focus:outline-none focus:border-primary"
+          oninput="updateDesignerCode()">
+        <div class="flex gap-2">
+          <button onclick="clearCanvas()" class="flex-1 px-2 py-1.5 text-xs bg-gray-800 hover:bg-gray-700 text-gray-400 rounded-lg transition-all">Limpar</button>
+          <button onclick="generateFromDesigner()" class="flex-1 px-2 py-1.5 text-xs bg-primary hover:bg-primary/80 text-white rounded-lg transition-all">Salvar .fg</button>
         </div>
       </div>
     </div>
 
-    <!-- Properties Panel -->
-    <div class="w-64 bg-gray-900 border-l border-gray-800 p-4 overflow-y-auto flex-shrink-0">
-      <div class="text-xs font-semibold text-gray-500 uppercase mb-3">Propriedades</div>
-      <div id="props-panel">
-        <p class="text-xs text-gray-600">Selecione um componente</p>
+    <!-- Fabric.js Canvas -->
+    <div class="flex-1 relative overflow-hidden bg-gray-950" id="canvas-wrapper">
+      <div class="absolute top-3 left-3 z-10 flex items-center gap-2">
+        <span id="zoom-level" class="text-xs text-gray-500 bg-gray-900/80 px-2 py-1 rounded">100%</span>
+        <button onclick="zoomIn()" class="text-xs text-gray-400 bg-gray-900/80 px-2 py-1 rounded hover:bg-gray-800">+</button>
+        <button onclick="zoomOut()" class="text-xs text-gray-400 bg-gray-900/80 px-2 py-1 rounded hover:bg-gray-800">-</button>
+        <button onclick="zoomReset()" class="text-xs text-gray-400 bg-gray-900/80 px-2 py-1 rounded hover:bg-gray-800">Reset</button>
       </div>
+      <canvas id="fabric-canvas"></canvas>
+    </div>
 
-      <div class="text-xs font-semibold text-gray-500 uppercase mt-6 mb-3">Codigo Gerado</div>
-      <pre id="generated-code" class="text-xs bg-gray-950 text-green-400 p-3 rounded-lg overflow-auto max-h-60 font-mono"></pre>
+    <!-- Properties + Code -->
+    <div class="w-64 bg-gray-900 border-l border-gray-800 flex flex-col flex-shrink-0 overflow-hidden">
+      <div class="flex-1 overflow-y-auto p-4">
+        <div class="text-xs font-semibold text-gray-500 uppercase mb-3">Propriedades</div>
+        <div id="d-props">
+          <p class="text-xs text-gray-600">Clique num componente no canvas</p>
+        </div>
+      </div>
+      <div class="border-t border-gray-800 p-4 max-h-[40%] overflow-y-auto">
+        <div class="text-xs font-semibold text-gray-500 uppercase mb-2">Codigo .fg Gerado</div>
+        <pre id="d-generated" class="text-xs bg-gray-950 text-green-400 p-3 rounded-lg overflow-auto font-mono whitespace-pre-wrap" style="max-height:200px"></pre>
+      </div>
     </div>
   </div>
 
@@ -290,15 +280,8 @@ function switchMode(mode) {
   document.getElementById('panel-editor').style.display = mode==='editor' ? 'flex' : 'none';
   document.getElementById('panel-designer').style.display = mode==='designer' ? 'flex' : 'none';
   document.getElementById('panel-fluxos').style.display = mode==='fluxos' ? 'flex' : 'none';
-  // Auto-create first screen if entering designer with no screens
-  if (mode === 'designer' && screens.length === 0) {
-    var screen = {name: 'principal', title: 'Principal', components: []};
-    screens.push(screen);
-    currentScreen = screen;
-    renderScreenList();
-    renderCanvas();
-    document.getElementById('canvas-screen-name').textContent = screen.title;
-    termLog('info', 'Tela "Principal" criada automaticamente. Arraste componentes para o canvas.');
+  if (mode === 'designer') {
+    setTimeout(function() { initFabricCanvas(); }, 100);
   }
 }
 
@@ -625,222 +608,422 @@ function clearTerminal() {
 }
 
 // ============================================================
-// DESIGNER - Visual Screen Builder
+// DESIGNER - Fabric.js Canvas Editor
 // ============================================================
 
-var screens = [];
-var currentScreen = null;
-var selectedComp = null;
-var compIdCounter = 0;
+var fabricCanvas = null;
+var designerReady = false;
+var compCounter = 0;
 
-function addScreen() {
-  var name = prompt('Nome da tela:');
-  if (!name) return;
-  var screen = {name: name, title: name.charAt(0).toUpperCase()+name.slice(1), components: []};
-  screens.push(screen);
-  currentScreen = screen;
-  renderScreenList();
-  renderCanvas();
-  document.getElementById('canvas-screen-name').textContent = screen.title;
-}
+function initFabricCanvas() {
+  if (designerReady) return;
 
-function selectScreen(idx) {
-  currentScreen = screens[idx];
-  renderScreenList();
-  renderCanvas();
-  document.getElementById('canvas-screen-name').textContent = currentScreen.title;
-}
+  var wrapper = document.getElementById('canvas-wrapper');
+  var cEl = document.getElementById('fabric-canvas');
+  cEl.width = wrapper.clientWidth;
+  cEl.height = wrapper.clientHeight;
 
-function renderScreenList() {
-  var html = '';
-  screens.forEach(function(s, i) {
-    var active = s === currentScreen ? 'bg-primary/10 text-primary' : 'text-gray-400 hover:bg-gray-800';
-    html += '<div class="px-3 py-1.5 text-xs rounded-lg cursor-pointer '+active+'" onclick="selectScreen('+i+')">'+s.title+'</div>';
+  fabricCanvas = new fabric.Canvas('fabric-canvas', {
+    backgroundColor: '#0a0a1a',
+    selection: true,
+    preserveObjectStacking: true,
   });
-  document.getElementById('screen-list').innerHTML = html;
+
+  // Grid background via CSS
+  wrapper.style.backgroundImage = 'radial-gradient(circle, rgba(99,102,241,0.08) 1px, transparent 1px)';
+  wrapper.style.backgroundSize = '20px 20px';
+
+  // Zoom with mouse wheel
+  fabricCanvas.on('mouse:wheel', function(opt) {
+    var delta = opt.e.deltaY;
+    var zoom = fabricCanvas.getZoom();
+    zoom *= Math.pow(0.999, delta);
+    if (zoom > 5) zoom = 5;
+    if (zoom < 0.2) zoom = 0.2;
+    fabricCanvas.zoomToPoint({ x: opt.e.offsetX, y: opt.e.offsetY }, zoom);
+    document.getElementById('zoom-level').textContent = Math.round(zoom * 100) + '%';
+    opt.e.preventDefault();
+    opt.e.stopPropagation();
+  });
+
+  // Pan with Alt+drag or middle mouse
+  var panning = false;
+  fabricCanvas.on('mouse:down', function(opt) {
+    if (opt.e.altKey || opt.e.button === 1) {
+      panning = true;
+      fabricCanvas.selection = false;
+      fabricCanvas.setCursor('grab');
+    }
+  });
+  fabricCanvas.on('mouse:move', function(opt) {
+    if (panning) {
+      var e = opt.e;
+      var vpt = fabricCanvas.viewportTransform;
+      vpt[4] += e.movementX;
+      vpt[5] += e.movementY;
+      fabricCanvas.requestRenderAll();
+    }
+  });
+  fabricCanvas.on('mouse:up', function() {
+    panning = false;
+    fabricCanvas.selection = true;
+    fabricCanvas.setCursor('default');
+  });
+
+  // Select/deselect
+  fabricCanvas.on('selection:created', function(e) { showDesignerProps(e.selected[0]); });
+  fabricCanvas.on('selection:updated', function(e) { showDesignerProps(e.selected[0]); });
+  fabricCanvas.on('selection:cleared', function() { clearDesignerProps(); });
+
+  // Update code on move/resize
+  fabricCanvas.on('object:modified', function() { updateDesignerCode(); });
+  fabricCanvas.on('object:added', function() { updateDesignerCode(); });
+  fabricCanvas.on('object:removed', function() { updateDesignerCode(); });
+
+  // Delete key
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Delete' && fabricCanvas && fabricCanvas.getActiveObject()) {
+      var obj = fabricCanvas.getActiveObject();
+      if (obj && obj.compType) {
+        fabricCanvas.remove(obj);
+        fabricCanvas.discardActiveObject();
+        clearDesignerProps();
+        updateDesignerCode();
+      }
+    }
+  });
+
+  // Resize observer
+  new ResizeObserver(function() {
+    if (!fabricCanvas) return;
+    fabricCanvas.setDimensions({
+      width: wrapper.clientWidth,
+      height: wrapper.clientHeight
+    });
+    fabricCanvas.renderAll();
+  }).observe(wrapper);
+
+  designerReady = true;
 }
 
-function dragComp(e, type) {
-  e.dataTransfer.setData('compType', type);
-}
+function addToCanvas(type) {
+  if (!fabricCanvas) initFabricCanvas();
 
-function dropComp(e) {
-  e.preventDefault();
-  var type = e.dataTransfer.getData('compType');
-  if (!type || !currentScreen) return;
+  compCounter++;
+  var id = 'comp-' + compCounter;
+  var group;
 
-  var comp = {id: ++compIdCounter, type: type, props: {}};
+  var cx = fabricCanvas.width / 2 / fabricCanvas.getZoom();
+  var cy = fabricCanvas.height / 2 / fabricCanvas.getZoom();
+  cx += (Math.random() - 0.5) * 100;
+  cy += (Math.random() - 0.5) * 100;
 
   switch(type) {
-    case 'titulo': comp.props = {texto: 'Minha Tela'}; break;
-    case 'lista': comp.props = {modelo: 'produto', campos: 'nome, preco, status'}; break;
-    case 'botao': comp.props = {texto: 'Novo', cor: 'azul', acao: 'criar produto'}; break;
-    case 'busca': comp.props = {modelo: 'produto'}; break;
-    case 'grafico': comp.props = {modelo: 'produto', tipo: 'barra'}; break;
-    case 'dashboard': comp.props = {}; break;
-    case 'formulario': comp.props = {modelo: 'produto'}; break;
-    case 'texto': comp.props = {conteudo: 'Texto aqui...'}; break;
+    case 'titulo':
+      group = createCompGroup(id, type, cx - 150, cy - 20, 300, 50, '#6366f1', 'Titulo', {texto: 'Minha Tela'});
+      break;
+    case 'lista':
+      group = createCompGroup(id, type, cx - 200, cy - 80, 400, 180, '#3b82f6', 'Lista / Tabela', {modelo: 'produto', campos: 'nome, preco, status'});
+      break;
+    case 'botao':
+      group = createCompGroup(id, type, cx - 60, cy - 18, 140, 40, '#22c55e', 'Botao', {texto: 'Novo', cor: 'azul', acao: 'criar produto'});
+      break;
+    case 'busca':
+      group = createCompGroup(id, type, cx - 150, cy - 18, 300, 40, '#06b6d4', 'Busca', {modelo: 'produto'});
+      break;
+    case 'grafico':
+      group = createCompGroup(id, type, cx - 180, cy - 80, 360, 180, '#f59e0b', 'Grafico', {modelo: 'produto', tipo: 'barra'});
+      break;
+    case 'cards':
+      group = createCompGroup(id, type, cx - 200, cy - 50, 400, 100, '#8b5cf6', 'Dashboard Cards', {});
+      break;
+    case 'formulario':
+      group = createCompGroup(id, type, cx - 160, cy - 100, 320, 220, '#ec4899', 'Formulario', {modelo: 'produto'});
+      break;
+    case 'texto':
+      group = createCompGroup(id, type, cx - 100, cy - 15, 200, 35, '#64748b', 'Texto', {conteudo: 'Texto aqui...'});
+      break;
+    case 'imagem':
+      group = createCompGroup(id, type, cx - 80, cy - 80, 160, 160, '#14b8a6', 'Imagem', {url: ''});
+      break;
+    case 'separador':
+      group = createCompGroup(id, type, cx - 150, cy - 2, 300, 4, '#475569', 'Separador', {});
+      break;
+    case 'input':
+      group = createCompGroup(id, type, cx - 120, cy - 18, 240, 40, '#a855f7', 'Campo', {nome: 'campo', tipo: 'texto'});
+      break;
+    case 'select':
+      group = createCompGroup(id, type, cx - 120, cy - 18, 240, 40, '#f97316', 'Dropdown', {nome: 'campo', opcoes: 'opcao1, opcao2, opcao3'});
+      break;
   }
 
-  currentScreen.components.push(comp);
-  renderCanvas();
-  updateGeneratedCode();
+  if (group) {
+    fabricCanvas.add(group);
+    fabricCanvas.setActiveObject(group);
+    fabricCanvas.renderAll();
+    showDesignerProps(group);
+  }
 }
 
-function renderCanvas() {
-  var canvas = document.getElementById('canvas');
-  var empty = document.getElementById('canvas-empty');
-
-  if (!currentScreen || !currentScreen.components.length) {
-    empty.style.display = 'flex';
-    Array.from(canvas.children).forEach(function(c) {
-      if (c.id !== 'canvas-empty') c.remove();
-    });
-    return;
-  }
-  empty.style.display = 'none';
-
-  Array.from(canvas.children).forEach(function(c) {
-    if (c.id !== 'canvas-empty') c.remove();
+function createCompGroup(id, type, x, y, w, h, color, label, props) {
+  var bg = new fabric.Rect({
+    width: w, height: h,
+    fill: color + '10',
+    stroke: color + '40',
+    strokeWidth: 1.5,
+    rx: 8, ry: 8,
+    originX: 'left', originY: 'top',
   });
 
-  currentScreen.components.forEach(function(comp, idx) {
-    var div = document.createElement('div');
-    div.className = 'canvas-comp' + (comp === selectedComp ? ' selected' : '');
-    div.onclick = function(e) { e.stopPropagation(); selectComp(idx); };
-
-    var preview = '';
-    switch(comp.type) {
-      case 'titulo':
-        preview = '<div style="font-size:18px;font-weight:700">' + (comp.props.texto||'Titulo') + '</div>';
-        break;
-      case 'lista':
-        preview = '<div style="display:flex;gap:8px;opacity:0.5"><span>ID</span><span>|</span>' +
-          (comp.props.campos||'nome').split(',').map(function(c){return '<span>'+c.trim()+'</span>';}).join('<span>|</span>') +
-          '</div><div style="border-top:1px solid rgba(255,255,255,0.05);margin-top:6px;padding-top:6px;opacity:0.3;font-size:11px">dados carregam automaticamente</div>';
-        break;
-      case 'botao':
-        preview = '<div style="display:inline-block;padding:6px 16px;background:rgba(99,102,241,0.2);border-radius:8px;font-size:12px;color:#818cf8">' + (comp.props.texto||'Botao') + '</div>';
-        break;
-      case 'busca':
-        preview = '<div style="padding:6px 12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:8px;font-size:12px;opacity:0.5">Buscar em ' + (comp.props.modelo||'...') + '</div>';
-        break;
-      case 'grafico':
-        preview = '<div style="height:40px;display:flex;align-items:flex-end;gap:3px"><div style="width:16px;background:rgba(99,102,241,0.3);height:60%;border-radius:3px 3px 0 0"></div><div style="width:16px;background:rgba(99,102,241,0.5);height:80%;border-radius:3px 3px 0 0"></div><div style="width:16px;background:rgba(99,102,241,0.4);height:50%;border-radius:3px 3px 0 0"></div><div style="width:16px;background:rgba(99,102,241,0.6);height:90%;border-radius:3px 3px 0 0"></div></div>';
-        break;
-      case 'dashboard':
-        preview = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px"><div style="padding:8px;background:rgba(99,102,241,0.1);border-radius:6px;font-size:10px">Card 1</div><div style="padding:8px;background:rgba(34,197,94,0.1);border-radius:6px;font-size:10px">Card 2</div></div>';
-        break;
-      case 'formulario':
-        preview = '<div style="space-y:4px"><div style="height:8px;width:60%;background:rgba(255,255,255,0.05);border-radius:4px;margin-bottom:4px"></div><div style="height:28px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:6px;margin-bottom:4px"></div><div style="height:8px;width:40%;background:rgba(255,255,255,0.05);border-radius:4px;margin-bottom:4px"></div><div style="height:28px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:6px"></div></div>';
-        break;
-      case 'texto':
-        preview = '<div style="font-size:13px;opacity:0.6">' + (comp.props.conteudo||'Texto') + '</div>';
-        break;
-    }
-
-    div.innerHTML = '<div class="comp-label">' + comp.type + '</div>' +
-      '<div class="comp-preview">' + preview + '</div>' +
-      '<button class="comp-delete" onclick="event.stopPropagation();removeComp('+idx+')">&times;</button>';
-    canvas.appendChild(div);
+  var labelText = new fabric.Text(label, {
+    fontSize: 10,
+    fill: color,
+    fontFamily: 'Inter, system-ui, sans-serif',
+    fontWeight: '700',
+    left: 8,
+    top: 6,
+    originX: 'left', originY: 'top',
   });
-}
 
-function selectComp(idx) {
-  selectedComp = currentScreen.components[idx];
-  renderCanvas();
-  renderProps();
-}
-
-function removeComp(idx) {
-  currentScreen.components.splice(idx, 1);
-  selectedComp = null;
-  renderCanvas();
-  renderProps();
-  updateGeneratedCode();
-}
-
-function renderProps() {
-  var panel = document.getElementById('props-panel');
-  if (!selectedComp) {
-    panel.innerHTML = '<p class="text-xs text-gray-600">Selecione um componente</p>';
-    return;
+  var previewText = '';
+  switch(type) {
+    case 'titulo': previewText = props.texto || 'Titulo'; break;
+    case 'lista': previewText = 'ID | ' + (props.campos||'nome, preco').split(',').join(' | '); break;
+    case 'botao': previewText = '[ ' + (props.texto||'Botao') + ' ]'; break;
+    case 'busca': previewText = 'Buscar em ' + (props.modelo||'...'); break;
+    case 'grafico': previewText = (props.tipo||'barra') + ' - ' + (props.modelo||'dados'); break;
+    case 'cards': previewText = '[ Card 1 ] [ Card 2 ] [ Card 3 ]'; break;
+    case 'formulario': previewText = 'Nome: [____]  Email: [____]  [ Salvar ]'; break;
+    case 'texto': previewText = props.conteudo || 'Texto'; break;
+    case 'imagem': previewText = '[ Imagem ]'; break;
+    case 'separador': previewText = ''; break;
+    case 'input': previewText = (props.nome||'campo') + ': [____________]'; break;
+    case 'select': previewText = (props.nome||'campo') + ': [v selecione ]'; break;
   }
 
-  var html = '<div class="space-y-3">';
-  html += '<div class="text-xs text-primary font-semibold mb-2">' + selectedComp.type.toUpperCase() + '</div>';
+  var content = new fabric.Text(previewText, {
+    fontSize: 12,
+    fill: '#94a3b8',
+    fontFamily: "'JetBrains Mono', monospace",
+    left: 8,
+    top: 22,
+    originX: 'left', originY: 'top',
+  });
+
+  var group = new fabric.Group([bg, labelText, content], {
+    left: x, top: y,
+    originX: 'left', originY: 'top',
+    cornerStyle: 'circle',
+    cornerColor: color,
+    cornerStrokeColor: '#fff',
+    cornerSize: 8,
+    transparentCorners: false,
+    borderColor: color,
+    borderScaleFactor: 2,
+    padding: 4,
+    snapAngle: 45,
+  });
+
+  group.compId = id;
+  group.compType = type;
+  group.compProps = props;
+  group.compColor = color;
+  group.compLabel = label;
+
+  return group;
+}
+
+function showDesignerProps(obj) {
+  if (!obj || !obj.compType) { clearDesignerProps(); return; }
+  var panel = document.getElementById('d-props');
+  var type = obj.compType;
+  var props = obj.compProps || {};
+  var color = obj.compColor || '#6366f1';
 
   var fields = {
     titulo: [{key:'texto',label:'Texto',type:'text'}],
     lista: [{key:'modelo',label:'Modelo',type:'text'},{key:'campos',label:'Campos (virgula)',type:'text'}],
-    botao: [{key:'texto',label:'Texto',type:'text'},{key:'cor',label:'Cor',type:'select',options:['azul','verde','vermelho','amarelo']},{key:'acao',label:'Acao',type:'text'}],
+    botao: [{key:'texto',label:'Texto',type:'text'},{key:'cor',label:'Cor',type:'select',options:['azul','verde','vermelho','amarelo','roxo']},{key:'acao',label:'Acao',type:'text'}],
     busca: [{key:'modelo',label:'Modelo',type:'text'}],
-    grafico: [{key:'modelo',label:'Modelo',type:'text'},{key:'tipo',label:'Tipo',type:'select',options:['barra','pizza','linha']}],
+    grafico: [{key:'modelo',label:'Modelo',type:'text'},{key:'tipo',label:'Tipo',type:'select',options:['barra','pizza','linha','doughnut']}],
+    cards: [],
     formulario: [{key:'modelo',label:'Modelo',type:'text'}],
     texto: [{key:'conteudo',label:'Conteudo',type:'textarea'}],
-    dashboard: []
+    imagem: [{key:'url',label:'URL da imagem',type:'text'}],
+    separador: [],
+    input: [{key:'nome',label:'Nome do campo',type:'text'},{key:'tipo',label:'Tipo',type:'select',options:['texto','numero','email','telefone','data','senha','dinheiro']}],
+    select: [{key:'nome',label:'Nome do campo',type:'text'},{key:'opcoes',label:'Opcoes (virgula)',type:'text'}]
   };
 
-  (fields[selectedComp.type]||[]).forEach(function(f) {
-    html += '<div><label class="block text-xs text-gray-400 mb-1">' + f.label + '</label>';
+  var html = '<div class="space-y-3">';
+  html += '<div class="flex items-center gap-2 mb-2"><div class="w-3 h-3 rounded" style="background:'+color+'"></div><span class="text-xs font-bold" style="color:'+color+'">'+obj.compLabel+'</span></div>';
+
+  (fields[type]||[]).forEach(function(f) {
+    html += '<div><label class="block text-xs text-gray-400 mb-1">'+f.label+'</label>';
     if (f.type === 'select') {
-      html += '<select onchange="updateProp(\''+f.key+'\',this.value)" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-gray-200 focus:outline-none focus:border-primary">';
+      html += '<select onchange="updateCanvasProp(\''+f.key+'\',this.value)" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-gray-200 focus:outline-none focus:border-primary">';
       f.options.forEach(function(o) {
-        html += '<option value="'+o+'"'+(selectedComp.props[f.key]===o?' selected':'')+'>'+o+'</option>';
+        html += '<option value="'+o+'"'+(props[f.key]===o?' selected':'')+'>'+o+'</option>';
       });
       html += '</select>';
     } else if (f.type === 'textarea') {
-      html += '<textarea onchange="updateProp(\''+f.key+'\',this.value)" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-gray-200 focus:outline-none focus:border-primary resize-none" rows="3">'+(selectedComp.props[f.key]||'')+'</textarea>';
+      html += '<textarea onchange="updateCanvasProp(\''+f.key+'\',this.value)" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-gray-200 focus:outline-none focus:border-primary resize-none" rows="3">'+(props[f.key]||'')+'</textarea>';
     } else {
-      html += '<input type="text" value="'+(selectedComp.props[f.key]||'')+'" onchange="updateProp(\''+f.key+'\',this.value)" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-gray-200 focus:outline-none focus:border-primary">';
+      html += '<input type="text" value="'+(props[f.key]||'')+'" onchange="updateCanvasProp(\''+f.key+'\',this.value)" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-gray-200 focus:outline-none focus:border-primary">';
     }
     html += '</div>';
   });
 
+  html += '<div class="pt-3 border-t border-gray-800 mt-3">';
+  html += '<div class="grid grid-cols-2 gap-2 text-xs text-gray-500">';
+  html += '<span>X: '+Math.round(obj.left)+'</span><span>Y: '+Math.round(obj.top)+'</span>';
+  html += '<span>W: '+Math.round(obj.width * obj.scaleX)+'</span><span>H: '+Math.round(obj.height * obj.scaleY)+'</span>';
+  html += '</div></div>';
+
+  html += '<button onclick="deleteSelected()" class="w-full mt-3 px-3 py-1.5 text-xs bg-red-500/10 text-red-400 hover:bg-red-500/20 rounded-lg transition-all">Remover componente</button>';
   html += '</div>';
   panel.innerHTML = html;
 }
 
-function updateProp(key, val) {
-  if (!selectedComp) return;
-  selectedComp.props[key] = val;
-  renderCanvas();
-  updateGeneratedCode();
+function clearDesignerProps() {
+  document.getElementById('d-props').innerHTML = '<p class="text-xs text-gray-600">Clique num componente no canvas</p>';
 }
 
-function updateGeneratedCode() {
-  var code = '';
-  screens.forEach(function(s) {
-    code += 'telas\n\n';
-    code += '  tela ' + s.name + '\n';
-    s.components.forEach(function(c) {
-      switch(c.type) {
-        case 'titulo': code += '    titulo "' + (c.props.texto||'') + '"\n'; break;
-        case 'lista':
-          code += '    lista ' + (c.props.modelo||'item') + '\n';
-          (c.props.campos||'').split(',').forEach(function(f) {
-            f = f.trim();
-            if (f) code += '      mostrar ' + f + '\n';
-          });
-          break;
-        case 'botao': code += '    botao ' + (c.props.cor||'azul') + '\n      texto "' + (c.props.texto||'Novo') + '"\n'; break;
-        case 'busca': code += '    busca ' + (c.props.modelo||'item') + '\n'; break;
-        case 'grafico': code += '    grafico ' + (c.props.modelo||'item') + '\n      tipo ' + (c.props.tipo||'barra') + '\n'; break;
-        case 'dashboard': code += '    dashboard\n'; break;
-        case 'formulario': code += '    formulario ' + (c.props.modelo||'item') + '\n'; break;
-        case 'texto': code += '    texto "' + (c.props.conteudo||'') + '"\n'; break;
-      }
-    });
-    code += '\n';
+function updateCanvasProp(key, val) {
+  var obj = fabricCanvas.getActiveObject();
+  if (!obj || !obj.compProps) return;
+  obj.compProps[key] = val;
+
+  var items = obj.getObjects();
+  if (items.length >= 3) {
+    var previewText = '';
+    switch(obj.compType) {
+      case 'titulo': previewText = obj.compProps.texto || 'Titulo'; break;
+      case 'lista': previewText = 'ID | ' + (obj.compProps.campos||'').split(',').join(' | '); break;
+      case 'botao': previewText = '[ ' + (obj.compProps.texto||'Botao') + ' ]'; break;
+      case 'busca': previewText = 'Buscar em ' + (obj.compProps.modelo||'...'); break;
+      case 'grafico': previewText = (obj.compProps.tipo||'barra') + ' - ' + (obj.compProps.modelo||'dados'); break;
+      case 'formulario': previewText = 'Formulario: ' + (obj.compProps.modelo||'item'); break;
+      case 'texto': previewText = obj.compProps.conteudo || 'Texto'; break;
+      case 'input': previewText = (obj.compProps.nome||'campo') + ': [____________]'; break;
+      case 'select': previewText = (obj.compProps.nome||'campo') + ': [v selecione ]'; break;
+      default: previewText = obj.compLabel;
+    }
+    items[2].set('text', previewText);
+  }
+  fabricCanvas.renderAll();
+  updateDesignerCode();
+}
+
+function deleteSelected() {
+  var obj = fabricCanvas.getActiveObject();
+  if (obj) {
+    fabricCanvas.remove(obj);
+    fabricCanvas.discardActiveObject();
+    clearDesignerProps();
+    updateDesignerCode();
+  }
+}
+
+function clearCanvas() {
+  if (!fabricCanvas) return;
+  var objects = fabricCanvas.getObjects().filter(function(o){ return o.compType; });
+  objects.forEach(function(o){ fabricCanvas.remove(o); });
+  fabricCanvas.discardActiveObject();
+  clearDesignerProps();
+  updateDesignerCode();
+}
+
+function zoomIn() {
+  if (!fabricCanvas) return;
+  var z = fabricCanvas.getZoom() * 1.2;
+  if (z > 5) z = 5;
+  fabricCanvas.setZoom(z);
+  document.getElementById('zoom-level').textContent = Math.round(z*100)+'%';
+}
+function zoomOut() {
+  if (!fabricCanvas) return;
+  var z = fabricCanvas.getZoom() * 0.8;
+  if (z < 0.2) z = 0.2;
+  fabricCanvas.setZoom(z);
+  document.getElementById('zoom-level').textContent = Math.round(z*100)+'%';
+}
+function zoomReset() {
+  if (!fabricCanvas) return;
+  fabricCanvas.setZoom(1);
+  fabricCanvas.viewportTransform = [1,0,0,1,0,0];
+  fabricCanvas.renderAll();
+  document.getElementById('zoom-level').textContent = '100%';
+}
+
+function updateDesignerCode() {
+  if (!fabricCanvas) return;
+  var objects = fabricCanvas.getObjects().filter(function(o){ return o.compType; });
+  objects.sort(function(a,b){ return a.top - b.top; });
+
+  var screenName = document.getElementById('d-screen-name').value || 'principal';
+  var code = 'telas\n\n';
+  code += '  tela ' + screenName + '\n';
+
+  objects.forEach(function(obj) {
+    var p = obj.compProps || {};
+    switch(obj.compType) {
+      case 'titulo':
+        code += '    titulo "' + (p.texto||'Titulo') + '"\n';
+        break;
+      case 'lista':
+        code += '    lista ' + (p.modelo||'item') + '\n';
+        (p.campos||'').split(',').forEach(function(f) {
+          f = f.trim();
+          if (f) code += '      mostrar ' + f + '\n';
+        });
+        break;
+      case 'botao':
+        code += '    botao ' + (p.cor||'azul') + '\n';
+        code += '      texto "' + (p.texto||'Novo') + '"\n';
+        break;
+      case 'busca':
+        code += '    busca ' + (p.modelo||'item') + '\n';
+        break;
+      case 'grafico':
+        code += '    grafico ' + (p.modelo||'item') + '\n';
+        code += '      tipo ' + (p.tipo||'barra') + '\n';
+        break;
+      case 'cards':
+        code += '    dashboard\n';
+        break;
+      case 'formulario':
+        code += '    formulario ' + (p.modelo||'item') + '\n';
+        break;
+      case 'texto':
+        code += '    # ' + (p.conteudo||'Texto') + '\n';
+        break;
+      case 'imagem':
+        if (p.url) code += '    # imagem: ' + p.url + '\n';
+        break;
+      case 'separador':
+        code += '    # ---\n';
+        break;
+      case 'input':
+        code += '    # campo ' + (p.nome||'campo') + ': ' + (p.tipo||'texto') + '\n';
+        break;
+      case 'select':
+        code += '    # select ' + (p.nome||'campo') + ': ' + (p.opcoes||'') + '\n';
+        break;
+    }
   });
-  document.getElementById('generated-code').textContent = code;
+
+  code += '\n';
+  document.getElementById('d-generated').textContent = code;
 }
 
 function generateFromDesigner() {
-  updateGeneratedCode();
-  var code = document.getElementById('generated-code').textContent;
-  if (!code) { termLog('error', 'Nenhuma tela criada'); return; }
-
+  updateDesignerCode();
+  var code = document.getElementById('d-generated').textContent;
+  if (!code || code.trim() === 'telas\n\n  tela principal') {
+    termLog('error', 'Canvas vazio - arraste componentes primeiro');
+    return;
+  }
   var filename = 'telas_visual.fg';
   fetch('/api/file/save', {
     method: 'POST',
