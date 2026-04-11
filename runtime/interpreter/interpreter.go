@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -1160,6 +1161,140 @@ func (interp *Interpreter) callBuiltin(name string, args []interface{}) (interfa
 			return results, true
 		}
 		return []interface{}{}, true
+
+	case "ia_completar", "ai_complete", "ai":
+		// ia_completar("prompt") or ia_completar("prompt", "provedor")
+		// Uses OPENAI_KEY, CLAUDE_KEY, or GEMINI_KEY from env
+		if len(args) < 1 {
+			return "", true
+		}
+		prompt := toString(args[0])
+		provider := "openai"
+		if len(args) >= 2 {
+			provider = strings.ToLower(toString(args[1]))
+		}
+
+		var apiKey, aiURL, bodyJSON string
+		switch provider {
+		case "openai", "chatgpt", "gpt":
+			apiKey = os.Getenv("OPENAI_KEY")
+			if apiKey == "" {
+				apiKey = os.Getenv("OPENAI_API_KEY")
+			}
+			aiURL = "https://api.openai.com/v1/chat/completions"
+			bodyJSON = fmt.Sprintf(`{"model":"gpt-4o-mini","messages":[{"role":"user","content":%q}],"max_tokens":1000}`, prompt)
+		case "claude", "anthropic":
+			apiKey = os.Getenv("CLAUDE_KEY")
+			if apiKey == "" {
+				apiKey = os.Getenv("ANTHROPIC_API_KEY")
+			}
+			aiURL = "https://api.anthropic.com/v1/messages"
+			bodyJSON = fmt.Sprintf(`{"model":"claude-sonnet-4-20250514","max_tokens":1000,"messages":[{"role":"user","content":%q}]}`, prompt)
+		case "gemini", "google":
+			apiKey = os.Getenv("GEMINI_KEY")
+			if apiKey == "" {
+				apiKey = os.Getenv("GOOGLE_API_KEY")
+			}
+			aiURL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + apiKey
+			bodyJSON = fmt.Sprintf(`{"contents":[{"parts":[{"text":%q}]}]}`, prompt)
+		default:
+			interp.AppendLog("ERRO IA: provedor desconhecido: " + provider)
+			return nil, true
+		}
+
+		if apiKey == "" && provider != "gemini" {
+			interp.AppendLog("ERRO IA: defina " + strings.ToUpper(provider) + "_KEY no .env")
+			return nil, true
+		}
+
+		if interp.HTTPClient == nil {
+			interp.AppendLog("ERRO IA: HTTP client nao disponivel")
+			return nil, true
+		}
+
+		// Make the API call
+		resp, err := interp.HTTPClient.Chamar("POST", aiURL, []byte(bodyJSON))
+		if err != nil {
+			interp.AppendLog(fmt.Sprintf("ERRO IA: %s", err))
+			return nil, true
+		}
+
+		// Parse response based on provider
+		var aiResult interface{}
+		if err := json.Unmarshal(resp, &aiResult); err != nil {
+			return string(resp), true
+		}
+
+		// Extract text from response
+		if m, ok := aiResult.(map[string]interface{}); ok {
+			// OpenAI format
+			if choices, ok := m["choices"].([]interface{}); ok && len(choices) > 0 {
+				if choice, ok := choices[0].(map[string]interface{}); ok {
+					if msg, ok := choice["message"].(map[string]interface{}); ok {
+						return msg["content"], true
+					}
+				}
+			}
+			// Claude format
+			if content, ok := m["content"].([]interface{}); ok && len(content) > 0 {
+				if block, ok := content[0].(map[string]interface{}); ok {
+					return block["text"], true
+				}
+			}
+			// Gemini format
+			if candidates, ok := m["candidates"].([]interface{}); ok && len(candidates) > 0 {
+				if cand, ok := candidates[0].(map[string]interface{}); ok {
+					if cont, ok := cand["content"].(map[string]interface{}); ok {
+						if parts, ok := cont["parts"].([]interface{}); ok && len(parts) > 0 {
+							if part, ok := parts[0].(map[string]interface{}); ok {
+								return part["text"], true
+							}
+						}
+					}
+				}
+			}
+			// Return raw if can't parse
+			return string(resp), true
+		}
+		return string(resp), true
+
+	case "ia_classificar", "ai_classify":
+		// ia_classificar("texto", "categoria1, categoria2, categoria3")
+		if len(args) < 2 {
+			return "", true
+		}
+		texto := toString(args[0])
+		categorias := toString(args[1])
+		prompt := fmt.Sprintf("Classifique o seguinte texto em uma dessas categorias: %s. Responda APENAS com o nome da categoria, nada mais.\n\nTexto: %s", categorias, texto)
+		result, _ := interp.callBuiltin("ia_completar", []interface{}{prompt})
+		return result, true
+
+	case "ia_resumir", "ai_summarize":
+		// ia_resumir("texto longo")
+		if len(args) < 1 {
+			return "", true
+		}
+		prompt := "Resuma o seguinte texto em no maximo 2 frases:\n\n" + toString(args[0])
+		result, _ := interp.callBuiltin("ia_completar", []interface{}{prompt})
+		return result, true
+
+	case "ia_traduzir", "ai_translate":
+		// ia_traduzir("texto", "ingles")
+		if len(args) < 2 {
+			return "", true
+		}
+		prompt := fmt.Sprintf("Traduza para %s. Responda APENAS com a traducao:\n\n%s", toString(args[1]), toString(args[0]))
+		result, _ := interp.callBuiltin("ia_completar", []interface{}{prompt})
+		return result, true
+
+	case "ia_sentimento", "ai_sentiment":
+		// ia_sentimento("texto") returns "positivo", "negativo", or "neutro"
+		if len(args) < 1 {
+			return "", true
+		}
+		prompt := "Analise o sentimento do texto e responda APENAS com: positivo, negativo, ou neutro.\n\nTexto: " + toString(args[0])
+		result, _ := interp.callBuiltin("ia_completar", []interface{}{prompt})
+		return result, true
 	}
 
 	return nil, false

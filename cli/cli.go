@@ -159,13 +159,21 @@ func cmdNew(name string) {
 	dir := name
 	baseName := filepath.Base(name)
 	title := strings.ToUpper(baseName[:1]) + baseName[1:]
+
+	// Check if name is a template
+	template := detectTemplate(baseName)
+
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		fmt.Printf("Erro: %s\n", err)
 		os.Exit(1)
 	}
 
-	// Modo plano: tudo num arquivo só, simples e direto
-	fg := `sistema ` + baseName + `
+	var fg string
+	if template != "" {
+		fg = getTemplate(template, baseName)
+	} else {
+		// Modo plano: tudo num arquivo só, simples e direto
+		fg = `sistema ` + baseName + `
 
 tema
   cor primaria "#6366f1"
@@ -216,6 +224,7 @@ eventos
   quando clicar "Novo Cliente"
     criar cliente
 `
+	}
 
 	fgPath := filepath.Join(dir, "inicio.fg")
 	if err := os.WriteFile(fgPath, []byte(fg), 0644); err != nil {
@@ -223,11 +232,714 @@ eventos
 		os.Exit(1)
 	}
 
-	fmt.Printf("[flang] Projeto '%s' criado! (modo plano)\n", title)
+	if template != "" {
+		fmt.Printf("[flang] Projeto '%s' criado! (template: %s)\n", title, template)
+	} else {
+		fmt.Printf("[flang] Projeto '%s' criado! (modo plano)\n", title)
+	}
 	fmt.Println("[flang] Tudo num arquivo so - simples e direto.")
 	fmt.Printf("[flang] Execute: flang %s\n", fgPath)
 	fmt.Println()
 	fmt.Println("[flang] Dica: quando crescer, use 'flang init' para modo organizado.")
+}
+
+func detectTemplate(name string) string {
+	templates := map[string]string{
+		"loja": "loja", "store": "loja", "shop": "loja", "ecommerce": "loja",
+		"clinica": "clinica", "clinic": "clinica", "consultorio": "clinica", "hospital": "clinica",
+		"escola": "escola", "school": "escola", "curso": "escola", "academy": "escola",
+		"delivery": "delivery", "entrega": "delivery", "food": "delivery", "restaurante": "delivery",
+		"crm": "crm", "vendas": "crm", "sales": "crm",
+		"helpdesk": "helpdesk", "suporte": "helpdesk", "support": "helpdesk", "ticket": "helpdesk",
+		"blog": "blog", "portfolio": "blog", "site": "blog",
+		"financeiro": "financeiro", "finance": "financeiro", "contabil": "financeiro",
+	}
+	return templates[strings.ToLower(name)]
+}
+
+func getTemplate(template, name string) string {
+	switch template {
+	case "loja":
+		return `sistema ` + name + `
+
+tema moderno escuro
+
+dados
+
+  categoria
+    nome: texto obrigatorio
+    descricao: texto
+
+  produto
+    nome: texto obrigatorio
+    descricao: texto_longo
+    preco: dinheiro
+    estoque: numero
+    imagem: imagem
+    categoria: texto pertence_a categoria
+    status: enum(ativo, inativo, esgotado)
+
+  cliente
+    nome: texto obrigatorio
+    cpf: cpf
+    email: email unico
+    telefone: telefone
+    cep: cep
+    cidade: texto
+    status: status
+
+  pedido
+    cliente: texto pertence_a cliente
+    produto: texto pertence_a produto
+    quantidade: numero
+    valor: dinheiro
+    forma_pagamento: enum(pix, cartao, boleto, dinheiro)
+    status: enum(pendente, pago, enviado, entregue, cancelado)
+
+telas
+
+  tela produtos
+    titulo "Produtos"
+    busca produto
+    lista produto
+      mostrar nome
+      mostrar preco
+      mostrar estoque
+      mostrar status
+    botao azul
+      texto "Novo Produto"
+
+  tela clientes
+    titulo "Clientes"
+    lista cliente
+      mostrar nome
+      mostrar email
+      mostrar telefone
+      mostrar status
+    botao verde
+      texto "Novo Cliente"
+
+  tela pedidos
+    titulo "Pedidos"
+    lista pedido
+      mostrar cliente
+      mostrar produto
+      mostrar valor
+      mostrar status
+    botao azul
+      texto "Novo Pedido"
+
+eventos
+
+  quando clicar "Novo Produto"
+    criar produto
+
+  quando clicar "Novo Cliente"
+    criar cliente
+
+  quando clicar "Novo Pedido"
+    criar pedido
+`
+	case "clinica":
+		return `sistema ` + name + `
+
+tema elegante
+
+dados
+
+  paciente
+    nome: texto obrigatorio
+    cpf: cpf obrigatorio unico
+    data_nascimento: data
+    telefone: telefone
+    email: email
+    cep: cep
+    cidade: texto
+    convenio: texto
+    tipo_sanguineo: enum(A+, A-, B+, B-, AB+, AB-, O+, O-)
+    alergias: tags
+    status: status
+
+  medico
+    nome: texto obrigatorio
+    crm: texto obrigatorio unico
+    especialidade: texto
+    telefone: telefone
+    email: email
+    status: status
+
+  consulta
+    paciente: texto pertence_a paciente
+    medico: texto pertence_a medico
+    data_hora: data_hora obrigatorio
+    tipo: enum(consulta, retorno, exame, cirurgia)
+    observacoes: texto_longo
+    valor: dinheiro
+    status: enum(agendada, confirmada, realizada, cancelada, faltou)
+
+  prontuario
+    paciente: texto pertence_a paciente
+    medico: texto pertence_a medico
+    descricao: texto_longo obrigatorio
+    prescricao: texto_longo
+    exames: tags
+
+telas
+
+  tela pacientes
+    titulo "Pacientes"
+    busca paciente
+    lista paciente
+      mostrar nome
+      mostrar cpf
+      mostrar telefone
+      mostrar convenio
+      mostrar status
+    botao azul
+      texto "Novo Paciente"
+
+  tela consultas
+    titulo "Agenda"
+    lista consulta
+      mostrar paciente
+      mostrar medico
+      mostrar data_hora
+      mostrar tipo
+      mostrar status
+    botao verde
+      texto "Nova Consulta"
+
+  tela medicos
+    titulo "Medicos"
+    lista medico
+      mostrar nome
+      mostrar crm
+      mostrar especialidade
+      mostrar status
+    botao azul
+      texto "Novo Medico"
+
+eventos
+
+  quando clicar "Novo Paciente"
+    criar paciente
+
+  quando clicar "Nova Consulta"
+    criar consulta
+
+  quando clicar "Novo Medico"
+    criar medico
+`
+	case "escola":
+		return `sistema ` + name + `
+
+tema corporativo
+
+dados
+
+  aluno
+    nome: texto obrigatorio
+    cpf: cpf
+    data_nascimento: data
+    email: email
+    telefone: telefone
+    turma: texto pertence_a turma
+    responsavel: texto
+    telefone_responsavel: telefone
+    status: enum(ativo, inativo, trancado, formado)
+
+  professor
+    nome: texto obrigatorio
+    email: email obrigatorio unico
+    telefone: telefone
+    disciplina: texto
+    status: status
+
+  turma
+    nome: texto obrigatorio
+    periodo: enum(manha, tarde, noite, integral)
+    professor: texto pertence_a professor
+    ano: numero
+    vagas: numero
+    status: status
+
+  nota
+    aluno: texto pertence_a aluno
+    disciplina: texto
+    nota1: percentual
+    nota2: percentual
+    nota3: percentual
+    nota4: percentual
+    media: percentual
+    status: enum(aprovado, reprovado, recuperacao, cursando)
+
+telas
+
+  tela alunos
+    titulo "Alunos"
+    busca aluno
+    lista aluno
+      mostrar nome
+      mostrar turma
+      mostrar status
+    botao azul
+      texto "Novo Aluno"
+
+  tela turmas
+    titulo "Turmas"
+    lista turma
+      mostrar nome
+      mostrar periodo
+      mostrar professor
+      mostrar vagas
+      mostrar status
+    botao verde
+      texto "Nova Turma"
+
+  tela professores
+    titulo "Professores"
+    lista professor
+      mostrar nome
+      mostrar disciplina
+      mostrar email
+      mostrar status
+    botao azul
+      texto "Novo Professor"
+
+  tela notas
+    titulo "Notas"
+    lista nota
+      mostrar aluno
+      mostrar disciplina
+      mostrar media
+      mostrar status
+    botao azul
+      texto "Lancar Nota"
+
+eventos
+
+  quando clicar "Novo Aluno"
+    criar aluno
+
+  quando clicar "Nova Turma"
+    criar turma
+
+  quando clicar "Novo Professor"
+    criar professor
+
+  quando clicar "Lancar Nota"
+    criar nota
+`
+	case "delivery":
+		return `sistema ` + name + `
+
+tema moderno
+
+dados
+
+  categoria
+    nome: texto obrigatorio
+    descricao: texto
+    icone: imagem
+
+  item_cardapio
+    nome: texto obrigatorio
+    descricao: texto_longo
+    preco: dinheiro obrigatorio
+    imagem: imagem
+    categoria: texto pertence_a categoria
+    tempo_preparo: numero
+    disponivel: booleano
+
+  cliente
+    nome: texto obrigatorio
+    telefone: telefone obrigatorio
+    cep: cep
+    endereco: texto
+    cidade: texto
+    status: status
+
+  pedido
+    cliente: texto pertence_a cliente
+    itens: tags
+    valor_total: dinheiro
+    taxa_entrega: dinheiro
+    forma_pagamento: enum(pix, cartao, dinheiro, vale)
+    endereco_entrega: texto
+    observacoes: texto_longo
+    avaliacao: estrelas
+    status: enum(recebido, preparando, saiu_entrega, entregue, cancelado)
+
+  entregador
+    nome: texto obrigatorio
+    telefone: telefone obrigatorio
+    veiculo: enum(moto, bicicleta, carro, a_pe)
+    status: enum(disponivel, entregando, offline)
+
+telas
+
+  tela cardapio
+    titulo "Cardapio"
+    busca item_cardapio
+    lista item_cardapio
+      mostrar nome
+      mostrar preco
+      mostrar categoria
+      mostrar disponivel
+    botao verde
+      texto "Novo Item"
+
+  tela pedidos
+    titulo "Pedidos"
+    lista pedido
+      mostrar cliente
+      mostrar valor_total
+      mostrar forma_pagamento
+      mostrar avaliacao
+      mostrar status
+    botao azul
+      texto "Novo Pedido"
+
+  tela entregadores
+    titulo "Entregadores"
+    lista entregador
+      mostrar nome
+      mostrar telefone
+      mostrar veiculo
+      mostrar status
+    botao azul
+      texto "Novo Entregador"
+
+eventos
+
+  quando clicar "Novo Item"
+    criar item_cardapio
+
+  quando clicar "Novo Pedido"
+    criar pedido
+
+  quando clicar "Novo Entregador"
+    criar entregador
+`
+	case "crm":
+		return `sistema ` + name + `
+
+tema elegante escuro
+
+dados
+
+  contato
+    nome: texto obrigatorio
+    empresa: texto
+    cargo: texto
+    email: email
+    telefone: telefone
+    site: url
+    origem: enum(indicacao, site, linkedin, evento, cold_call, outro)
+    tags: tags
+    status: enum(lead, qualificado, cliente, inativo)
+
+  negocio
+    titulo: texto obrigatorio
+    valor: dinheiro
+    contato: texto pertence_a contato
+    estagio: enum(prospeccao, qualificacao, proposta, negociacao, fechamento)
+    probabilidade: percentual
+    previsao: data
+    responsavel: texto
+    notas: texto_longo
+    status: enum(aberto, ganho, perdido)
+
+  atividade
+    titulo: texto obrigatorio
+    tipo: enum(ligacao, email, reuniao, tarefa, visita)
+    contato: texto pertence_a contato
+    negocio: texto pertence_a negocio
+    data_hora: data_hora
+    descricao: texto_longo
+    status: enum(pendente, concluida, cancelada)
+
+telas
+
+  tela contatos
+    titulo "Contatos"
+    busca contato
+    lista contato
+      mostrar nome
+      mostrar empresa
+      mostrar email
+      mostrar telefone
+      mostrar status
+    botao azul
+      texto "Novo Contato"
+
+  tela negocios
+    titulo "Negocios"
+    lista negocio
+      mostrar titulo
+      mostrar valor
+      mostrar contato
+      mostrar estagio
+      mostrar probabilidade
+      mostrar status
+    botao verde
+      texto "Novo Negocio"
+
+  tela atividades
+    titulo "Atividades"
+    lista atividade
+      mostrar titulo
+      mostrar tipo
+      mostrar contato
+      mostrar data_hora
+      mostrar status
+    botao azul
+      texto "Nova Atividade"
+
+eventos
+
+  quando clicar "Novo Contato"
+    criar contato
+
+  quando clicar "Novo Negocio"
+    criar negocio
+
+  quando clicar "Nova Atividade"
+    criar atividade
+`
+	case "helpdesk":
+		return `sistema ` + name + `
+
+tema moderno escuro
+
+autenticacao
+  modelo: atendente
+  campo_login: email
+  campo_senha: senha
+  roles: admin, supervisor, atendente
+
+dados
+
+  atendente
+    nome: texto obrigatorio
+    email: email obrigatorio unico
+    senha: senha obrigatorio
+    setor: texto
+    status: status
+
+  cliente
+    nome: texto obrigatorio
+    email: email
+    telefone: telefone
+    empresa: texto
+    status: status
+
+  ticket
+    titulo: texto obrigatorio
+    descricao: texto_longo
+    cliente: texto pertence_a cliente
+    atendente: texto pertence_a atendente
+    prioridade: enum(baixa, media, alta, urgente)
+    categoria: enum(bug, duvida, solicitacao, melhoria)
+    status: enum(aberto, em_andamento, aguardando, resolvido, fechado)
+
+  resposta
+    ticket: texto pertence_a ticket
+    autor: texto
+    mensagem: texto_longo obrigatorio
+    tipo: enum(publica, interna)
+
+telas
+
+  tela tickets
+    titulo "Tickets"
+    busca ticket
+    lista ticket
+      mostrar titulo
+      mostrar cliente
+      mostrar atendente
+      mostrar prioridade
+      mostrar categoria
+      mostrar status
+    botao azul
+      texto "Novo Ticket"
+
+  tela clientes
+    titulo "Clientes"
+    lista cliente
+      mostrar nome
+      mostrar email
+      mostrar telefone
+      mostrar empresa
+      mostrar status
+    botao verde
+      texto "Novo Cliente"
+
+  tela atendentes
+    titulo "Atendentes"
+    requer admin
+    lista atendente
+      mostrar nome
+      mostrar email
+      mostrar setor
+      mostrar status
+    botao azul
+      texto "Novo Atendente"
+
+eventos
+
+  quando clicar "Novo Ticket"
+    criar ticket
+
+  quando clicar "Novo Cliente"
+    criar cliente
+
+  quando clicar "Novo Atendente"
+    criar atendente
+`
+	case "blog":
+		return `sistema ` + name + `
+
+tema simples
+
+dados
+
+  post
+    titulo: texto obrigatorio
+    slug: texto unico
+    conteudo: texto_longo obrigatorio
+    imagem_capa: imagem
+    autor: texto
+    tags: tags
+    status: enum(rascunho, publicado, arquivado)
+
+  pagina
+    titulo: texto obrigatorio
+    slug: texto unico
+    conteudo: texto_longo obrigatorio
+    status: enum(rascunho, publicado)
+
+  comentario
+    post: texto pertence_a post
+    nome: texto obrigatorio
+    email: email
+    mensagem: texto_longo obrigatorio
+    status: enum(pendente, aprovado, spam)
+
+telas
+
+  tela posts
+    titulo "Posts"
+    busca post
+    lista post
+      mostrar titulo
+      mostrar autor
+      mostrar tags
+      mostrar status
+    botao azul
+      texto "Novo Post"
+
+  tela paginas
+    titulo "Paginas"
+    lista pagina
+      mostrar titulo
+      mostrar slug
+      mostrar status
+    botao verde
+      texto "Nova Pagina"
+
+eventos
+
+  quando clicar "Novo Post"
+    criar post
+
+  quando clicar "Nova Pagina"
+    criar pagina
+`
+	case "financeiro":
+		return `sistema ` + name + `
+
+tema corporativo
+
+dados
+
+  conta
+    nome: texto obrigatorio
+    tipo: enum(corrente, poupanca, investimento, caixa)
+    banco: texto
+    saldo: dinheiro
+    moeda: moeda
+    status: status
+
+  receita
+    descricao: texto obrigatorio
+    valor: dinheiro obrigatorio
+    categoria: enum(vendas, servicos, investimentos, outros)
+    conta: texto pertence_a conta
+    data: data obrigatorio
+    forma: enum(pix, cartao, boleto, dinheiro, transferencia)
+    cliente: texto
+    status: enum(pendente, recebido, atrasado)
+
+  despesa
+    descricao: texto obrigatorio
+    valor: dinheiro obrigatorio
+    categoria: enum(pessoal, aluguel, salarios, impostos, fornecedores, outros)
+    conta: texto pertence_a conta
+    data: data obrigatorio
+    forma: enum(pix, cartao, boleto, dinheiro, transferencia)
+    fornecedor: texto
+    status: enum(pendente, pago, atrasado)
+
+telas
+
+  tela receitas
+    titulo "Receitas"
+    lista receita
+      mostrar descricao
+      mostrar valor
+      mostrar categoria
+      mostrar data
+      mostrar status
+    botao verde
+      texto "Nova Receita"
+
+  tela despesas
+    titulo "Despesas"
+    lista despesa
+      mostrar descricao
+      mostrar valor
+      mostrar categoria
+      mostrar data
+      mostrar status
+    botao vermelho
+      texto "Nova Despesa"
+
+  tela contas
+    titulo "Contas"
+    lista conta
+      mostrar nome
+      mostrar tipo
+      mostrar banco
+      mostrar saldo
+      mostrar status
+    botao azul
+      texto "Nova Conta"
+
+eventos
+
+  quando clicar "Nova Receita"
+    criar receita
+
+  quando clicar "Nova Despesa"
+    criar despesa
+
+  quando clicar "Nova Conta"
+    criar conta
+`
+	default:
+		return ""
+	}
 }
 
 func cmdDocker() {
